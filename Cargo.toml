@@ -1,0 +1,13 @@
+[package]
+name = "sherlog"
+version = "0.1.0"
+authors = ["Benjamin Richner"]
+edition = "2018"
+license = "GPLv3"
+license-file = "LICENSE"
+
+[dependencies]
+gtk = "0.7.0"
+gio = "0.7.0"
+log = "0.4"
+chrono = "0.4"
