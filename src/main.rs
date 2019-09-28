@@ -40,7 +40,7 @@ struct LogEntry {
 
 enum LogSourceContents {
 	Sources(Vec::<LogSource>),
-	Entries(Vec::<LogEntry>),
+	Entries(LogSource),
 }
 
 struct LogSource {
