@@ -18,20 +18,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use chrono::prelude::*;
 
-
-fn append_text_column(tree: &TreeView) {
-    let column = TreeViewColumn::new();
-    let cell = CellRendererText::new();
-
-    // https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
-    column.pack_start(&cell, true);
-    column.add_attribute(&cell, "text", 0);
-	//column.set_title("Testtitle");
-	//column.set_sort_indicator(true);
-	//column.set_clickable(true);
-    tree.append_column(&column);
-}
-
 struct LogEntry {
 	timestamp : chrono::DateTime<Utc>,
 	severity : log::Level,
@@ -40,7 +26,7 @@ struct LogEntry {
 
 enum LogSourceContents {
 	Sources(Vec::<LogSource>),
-	Entries(LogSource),
+	Entries(Vec::<LogEntry>),
 }
 
 struct LogSource {
@@ -166,6 +152,38 @@ enum GlogParserState {
 
 // -------------------------------------------------------------------------------------------------------------
 
+fn append_text_column(tree: &TreeView, column_id: i32) {
+    let column = TreeViewColumn::new();
+    let cell = CellRendererText::new();
+
+    // https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
+    column.pack_start(&cell, true);
+    column.add_attribute(&cell, "text", column_id);
+	//column.set_title("Testtitle");
+	//column.set_sort_indicator(true);
+	//column.set_clickable(true);
+    tree.append_column(&column);
+}
+
+enum Columns {
+    Active = 0,
+	Text = 1,
+}
+
+fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
+    model: &gtk::TreeStore,
+    _w: &W,
+    path: gtk::TreePath,
+) {
+    let iter = model.get_iter(&path).unwrap();
+    let mut fixed = model
+        .get_value(&iter, Columns::Active as i32)
+        .get::<bool>()
+        .unwrap();
+    fixed = !fixed;
+    model.set_value(&iter, Columns::Active as u32, &fixed.to_value());
+}
+
 fn build_ui(application: &gtk::Application) {
     let window = gtk::ApplicationWindow::new(application);
 	//window.set_icon_from_file("../images/sherlog_icon.png");
@@ -195,24 +213,44 @@ fn build_ui(application: &gtk::Application) {
     window.set_title("Sherlog");
     window.set_border_width(10);
     window.set_position(gtk::WindowPosition::Center);
-    window.set_default_size(350, 70);
+    window.set_default_size(600, 400);
 	
 	// left pane
     let left_tree = TreeView::new();
-    let left_store = TreeStore::new(&[String::static_type()]);
+    let left_store = TreeStore::new(&[gtk::Type::Bool, String::static_type()]);
 
     left_tree.set_model(Some(&left_store));
-    left_tree.set_headers_visible(false);
-    append_text_column(&left_tree);
+    left_tree.set_headers_visible(true);
+	
+	// Column for fixed toggles
+    {
+        let renderer = gtk::CellRendererToggle::new();
+		let model_clone = left_store.clone();
+		renderer.connect_toggled(move |w, path| fixed_toggled(&model_clone, w, path));
+        let column = gtk::TreeViewColumn::new();
+        column.pack_start(&renderer, true);
+        column.set_title("Fixed?");
+        column.add_attribute(&renderer, "active", Columns::Active as i32);
+        column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Testtitle");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+        //column.set_fixed_width(50);
+		
+		let cell = CellRendererText::new();
+		column.pack_start(&cell, true);
+		column.add_attribute(&cell, "text", Columns::Text as i32);
+		left_tree.append_column(&column);
+	}
 
     for i in 0..10 {
         // insert_with_values takes two slices: column indices and ToValue
         // trait objects. ToValue is implemented for strings, numeric types,
         // bool and Object descendants
-        let iter = left_store.insert_with_values(None, None, &[0], &[&format!("Hello {}", i)]);
+        let iter = left_store.insert_with_values(None, None, &[Columns::Active as u32, Columns::Text as u32], &[&true, &format!("Helffffffffffflo {}", i)]);
 
         for _ in 0..i {
-            left_store.insert_with_values(Some(&iter), None, &[0], &[&"I'm a child node"]);
+            left_store.insert_with_values(Some(&iter), None, &[Columns::Active as u32, Columns::Text as u32], &[&true, &"I"]);
         }
     }
 
