@@ -152,22 +152,10 @@ enum GlogParserState {
 
 // -------------------------------------------------------------------------------------------------------------
 
-fn append_text_column(tree: &TreeView, column_id: i32) {
-    let column = TreeViewColumn::new();
-    let cell = CellRendererText::new();
-
-    // https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
-    column.pack_start(&cell, true);
-    column.add_attribute(&cell, "text", column_id);
-	//column.set_title("Testtitle");
-	//column.set_sort_indicator(true);
-	//column.set_clickable(true);
-    tree.append_column(&column);
-}
-
 enum Columns {
     Active = 0,
-	Text = 1,
+	Inconsistent = 1,
+	Text = 2,
 }
 
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
@@ -176,12 +164,29 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     path: gtk::TreePath,
 ) {
     let iter = model.get_iter(&path).unwrap();
-    let mut fixed = model
+    let mut active = model
         .get_value(&iter, Columns::Active as i32)
         .get::<bool>()
         .unwrap();
-    fixed = !fixed;
-    model.set_value(&iter, Columns::Active as u32, &fixed.to_value());
+    active = !active;
+    model.set_value(&iter, Columns::Active as u32, &active.to_value());
+	
+	/*path.next();
+	
+	let iter = model.get_iter(&path).unwrap();
+    let mut active = model
+        .get_value(&iter, Columns::Active as i32)
+        .get::<bool>()
+        .unwrap();
+    active = !active;
+    model.set_value(&iter, Columns::Active as u32, &active.to_value());*/
+	
+	/*let mut inconsistent = model
+        .get_value(&iter, Columns::Inconsistent as i32)
+        .get::<bool>()
+        .unwrap();
+    inconsistent = !inconsistent;
+    model.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());*/
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -191,7 +196,6 @@ fn build_ui(application: &gtk::Application) {
 	let file = File::open("../logfiles/example.glog").expect("Could not open file");
     let mut reader = BufReader::new(file);
 
-	let mut log_source = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(Vec::<LogSource>::new()) } };
 	let mut log_entries = Vec::new();
 	let mut buf = Vec::<u8>::new();
     while reader.read_until(b'\n', &mut buf).expect("read_until failed") != 0 {
@@ -209,6 +213,12 @@ fn build_ui(application: &gtk::Application) {
 			},
 		}
     }
+	
+	//Vec::<LogEntry>::new()
+	let mut log_source_ex = LogSource {name: "example".to_string(), children: {LogSourceContents::Entries(log_entries) } };
+	let mut log_source_ex2 = LogSource {name: "example2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	
+	let mut log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex, log_source_ex2]) } };
 
     window.set_title("Sherlog");
     window.set_border_width(10);
@@ -217,55 +227,76 @@ fn build_ui(application: &gtk::Application) {
 	
 	// left pane
     let left_tree = TreeView::new();
-    let left_store = TreeStore::new(&[gtk::Type::Bool, String::static_type()]);
+    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type()]);
 
     left_tree.set_model(Some(&left_store));
     left_tree.set_headers_visible(true);
 	
 	// Column for fixed toggles
     {
-        let renderer = gtk::CellRendererToggle::new();
-		let model_clone = left_store.clone();
-		renderer.connect_toggled(move |w, path| fixed_toggled(&model_clone, w, path));
-        let column = gtk::TreeViewColumn::new();
-        column.pack_start(&renderer, true);
-        column.set_title("Fixed?");
-        column.add_attribute(&renderer, "active", Columns::Active as i32);
-        column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Testtitle");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-        //column.set_fixed_width(50);
+		let column = gtk::TreeViewColumn::new();
+		// https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
+		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Log sources");
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+        column.set_fixed_width(300);
 		
-		let cell = CellRendererText::new();
-		column.pack_start(&cell, true);
-		column.add_attribute(&cell, "text", Columns::Text as i32);
+		{
+			let renderer_toggle = gtk::CellRendererToggle::new();
+			//renderer_toggle.set_property_inconsistent(true);
+			renderer_toggle.set_alignment(0.0, 0.0);
+			//renderer_toggle.set_padding(0, 0);
+			let model_clone = left_store.clone();
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled(&model_clone, w, path));
+			column.pack_start(&renderer_toggle, false);
+			column.add_attribute(&renderer_toggle, "active", Columns::Active as i32);
+			column.add_attribute(&renderer_toggle, "inconsistent", Columns::Inconsistent as i32);
+		}
+		
+		{
+			let renderer_text = CellRendererText::new();
+			renderer_text.set_alignment(0.0, 0.0);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", Columns::Text as i32);
+		}
 		left_tree.append_column(&column);
 	}
-
-    for i in 0..10 {
-        // insert_with_values takes two slices: column indices and ToValue
-        // trait objects. ToValue is implemented for strings, numeric types,
-        // bool and Object descendants
-        let iter = left_store.insert_with_values(None, None, &[Columns::Active as u32, Columns::Text as u32], &[&true, &format!("Helffffffffffflo {}", i)]);
-
-        for _ in 0..i {
-            left_store.insert_with_values(Some(&iter), None, &[Columns::Active as u32, Columns::Text as u32], &[&true, &"I"]);
-        }
-    }
-
-    let button = gtk::Button::new_with_label("Click me!");
+	
+	
+	fn build_left_store(store: &TreeStore, log_source: &LogSource, parent: Option<&gtk::TreeIter>) {
+		let new_parent = store.insert_with_values(parent, None, &[Columns::Active as u32, Columns::Inconsistent as u32, Columns::Text as u32], &[&false, &false, &log_source.name]);
+		match &log_source.children {
+			LogSourceContents::Sources(v) => {
+				for source in v {
+					build_left_store(store, source, Some(&new_parent));
+				}
+			},
+			LogSourceContents::Entries(v) => {
+				//DEBUG:
+				//for entry in v {
+				//	store.insert_with_values(Some(&new_parent), None, &[Columns::Active as u32, Columns::Inconsistent as u32, Columns::Text as u32], &[&true, &false, &entry.message]);
+				//}
+				()
+			},
+		}
+	}
+	build_left_store(&left_store, &log_source_root, None);
 	
 	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
 
     split_pane.set_size_request(-1, -1);
-	split_pane.add(&left_tree);
-    //split_pane.add(&button);
+	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+	//scrolled_window.set_property("min-content-width", &200);
+	scrolled_window.add(&left_tree);
+	split_pane.pack_start(&scrolled_window, false, false, 0);
+	
 	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
 	scrolled_window.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 	//scrolled_window.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	let listbox = gtk::ListBox::new();
-	for entry in log_entries {
+	/*for entry in log_entries {
 		let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 		let label = gtk::Label::new(Some(&entry.message));
 		label.set_selectable(true);
@@ -275,9 +306,20 @@ fn build_ui(application: &gtk::Application) {
 		//hbox.add(&button);
 		list_box_row.add(&hbox);
 		listbox.add(&list_box_row);
-	}
+	}*/
+	let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+	let label = gtk::Label::new(Some(&"This is a test!"));
+	label.set_selectable(true);
+	//let button = gtk::Button::new_with_label("Click me!");
+	let list_box_row = gtk::ListBoxRow::new();
+	hbox.add(&label);
+	//hbox.add(&button);
+	list_box_row.add(&hbox);
+	listbox.add(&list_box_row);
+	
+	
 	scrolled_window.add(&listbox);
-	split_pane.pack_end(&scrolled_window, true, true, 10);
+	split_pane.pack_start(&scrolled_window, true, true, 10);
 	//split_pane.add(&scrolled_window);
 
     window.add(&split_pane);
@@ -307,67 +349,6 @@ let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_sec as i
 println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 let dt : DateTime::<Utc> = DateTime::<FixedOffset>::parse_from_rfc3339("1996-12-19T16:39:57-08:00").expect("Parse error!").with_timezone(&Utc);
 println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));*/
-
-
-//Old Parser code
-/*let mut offset : usize = 0;
-for c in line_str.chars() {
-	match parser {
-		GlogParserState::PreSection => {
-			if c == '[' {
-				parser = GlogParserState::SectionKind;
-			} else {
-				parser = GlogParserState::Invalid;
-			}
-		},
-		GlogParserState::SectionKind => (),
-		GlogParserState::SectionValue => { parser = GlogParserState::SectionKind; },
-		GlogParserState::Invalid => { break; },
-	};
-	if i == 1 {
-		// println!("?{}?", c);
-	}
-	offset += c.len_utf8()
-}*/
-
-/*match &parser {
-	GlogParserState::PreSection => {
-		if idx.1 == '[' {
-			parser = GlogParserState::SectionKind(idx.0 + 1);
-		} else {
-			parser = GlogParserState::Invalid;
-		}
-	},
-	GlogParserState::SectionKind(kind_offset) => {
-		if idx.1 == '|' {
-			let kind_str = &line_str[*kind_offset..idx.0];
-			println!("{}", &kind_str);
-			let kind = match kind_str {
-				"tq" => GlogSectionKind::TimestampUs,
-				"s" => GlogSectionKind::Severity,
-				"m" => GlogSectionKind::Message,
-				_ => GlogSectionKind::Unknown,
-			};
-			parser = GlogParserState::SectionValue(kind, idx.0 + 1);
-		}
-	},
-	GlogParserState::SectionValue(kind, value_offset) => {
-		if idx.1 == ']' {
-			parser = GlogParserState::SectionValuePost(*kind, *value_offset);
-		}
-	},
-	GlogParserState::SectionValuePost(kind, value_offset) => {
-		if idx.1 == ':' {
-			//Add field to log entry
-			let value_str = &line_str[*value_offset..idx.0-1];
-			 println!("Kind: {:?}, Value: {}", kind, value_str);
-			parser = GlogParserState::PreSection;
-		} else {
-			parser = GlogParserState::SectionValue(*kind, *value_offset);
-		}
-	},
-	GlogParserState::Invalid => { break; },
-};*/
 
 /*
 enum Severity
