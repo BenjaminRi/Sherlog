@@ -168,25 +168,109 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
         .get_value(&iter, Columns::Active as i32)
         .get::<bool>()
         .unwrap();
-    active = !active;
-    model.set_value(&iter, Columns::Active as u32, &active.to_value());
-	
-	/*path.next();
-	
-	let iter = model.get_iter(&path).unwrap();
-    let mut active = model
-        .get_value(&iter, Columns::Active as i32)
-        .get::<bool>()
-        .unwrap();
-    active = !active;
-    model.set_value(&iter, Columns::Active as u32, &active.to_value());*/
-	
-	/*let mut inconsistent = model
+	let mut inconsistent = model
         .get_value(&iter, Columns::Inconsistent as i32)
         .get::<bool>()
         .unwrap();
-    inconsistent = !inconsistent;
-    model.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());*/
+	
+	
+	if inconsistent || !active {
+		inconsistent = false;
+		active = true;
+	} else {
+		active = false;
+	}
+	
+    model.set_value(&iter, Columns::Active as u32, &active.to_value());
+	model.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());
+	
+	let mut level_inconsistent = false;
+	
+	let mut path_forward = path.clone();
+	loop {
+		path_forward.next();
+		if let Some(iter) = model.get_iter(&path_forward) {
+			let n_active = model
+				.get_value(&iter, Columns::Active as i32)
+				.get::<bool>()
+				.unwrap();
+			
+			let n_inconsistent = model
+				.get_value(&iter, Columns::Inconsistent as i32)
+				.get::<bool>()
+				.unwrap();
+			
+			if n_active != active || n_inconsistent {
+				level_inconsistent = true;
+				break;
+			}
+		}
+		else {
+			break;
+		}
+	}
+	
+	let mut path_backwards = path.clone();
+	loop {
+		if path_backwards.prev() {
+			let iter = model.get_iter(&path_backwards).unwrap();
+			let n_active = model
+				.get_value(&iter, Columns::Active as i32)
+				.get::<bool>()
+				.unwrap();
+			
+			let n_inconsistent = model
+				.get_value(&iter, Columns::Inconsistent as i32)
+				.get::<bool>()
+				.unwrap();
+			
+			if n_active != active || n_inconsistent {
+				level_inconsistent = true;
+				break;
+			}
+		}
+		else {
+			break;
+		}
+	}
+	
+	let mut path_up = path.clone();
+	loop {
+		if path_up.up() && path_up.get_depth() > 0 {
+			let iter = model.get_iter(&path_up).unwrap();
+			if level_inconsistent {
+				model.set_value(&iter, Columns::Active as u32, &false.to_value());
+			}
+			else
+			{
+				model.set_value(&iter, Columns::Active as u32, &active.to_value());
+			}
+			model.set_value(&iter, Columns::Inconsistent as u32, &level_inconsistent.to_value());
+		}
+		else {
+			break;
+		}
+	}
+	
+	fn activate_children(model: &gtk::TreeStore, mut path: gtk::TreePath, active : bool) {
+		path.down();
+		loop {
+			if let Some(iter) = model.get_iter(&path)
+			{
+				model.set_value(&iter, Columns::Active as u32, &active.to_value());
+				model.set_value(&iter, Columns::Inconsistent as u32, &false.to_value());
+				activate_children(model, path.clone(), active);
+				path.next();
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+	activate_children(model, path, active);
+	
+	println!("Inconsistent: {}", level_inconsistent);
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -217,8 +301,13 @@ fn build_ui(application: &gtk::Application) {
 	//Vec::<LogEntry>::new()
 	let mut log_source_ex = LogSource {name: "example".to_string(), children: {LogSourceContents::Entries(log_entries) } };
 	let mut log_source_ex2 = LogSource {name: "example2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let mut log_source_ex3 = LogSource {name: "example3".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let mut log_source_ex4_1 = LogSource {name: "example4_1".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let mut log_source_ex4_2 = LogSource {name: "example4_2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let mut log_source_ex4 = LogSource {name: "example4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
 	
-	let mut log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex, log_source_ex2]) } };
+	let mut log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(
+	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
 
     window.set_title("Sherlog");
     window.set_border_width(10);
@@ -291,6 +380,7 @@ fn build_ui(application: &gtk::Application) {
 	//scrolled_window.set_property("min-content-width", &200);
 	scrolled_window.add(&left_tree);
 	split_pane.pack_start(&scrolled_window, false, false, 0);
+	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
 	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
 	scrolled_window.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
