@@ -158,17 +158,31 @@ enum Columns {
 	Text = 2,
 }
 
-fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
-    model: &gtk::TreeStore,
+fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
+	tree_store: &gtk::TreeStore,
+    model_sort: &gtk::TreeModelSort,
     _w: &W,
     path: gtk::TreePath,
 ) {
-    let iter = model.get_iter(&path).unwrap();
-    let mut active = model
+	fixed_toggled(
+		tree_store,
+		_w,
+		model_sort.convert_path_to_child_path(&path).unwrap());
+}
+
+fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
+    tree_store: &gtk::TreeStore,
+    _w: &W,
+    mut path: gtk::TreePath,
+) {
+	println!("Path: {:?}", path.get_indices_with_depth());
+	
+    let iter = tree_store.get_iter(&path).unwrap();
+    let mut active = tree_store
         .get_value(&iter, Columns::Active as i32)
         .get::<bool>()
         .unwrap();
-	let mut inconsistent = model
+	let mut inconsistent = tree_store
         .get_value(&iter, Columns::Inconsistent as i32)
         .get::<bool>()
         .unwrap();
@@ -181,21 +195,21 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		active = false;
 	}
 	
-    model.set_value(&iter, Columns::Active as u32, &active.to_value());
-	model.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());
+    tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
+	tree_store.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());
 	
 	let mut level_inconsistent = false;
 	
 	let mut path_forward = path.clone();
 	loop {
 		path_forward.next();
-		if let Some(iter) = model.get_iter(&path_forward) {
-			let n_active = model
+		if let Some(iter) = tree_store.get_iter(&path_forward) {
+			let n_active = tree_store
 				.get_value(&iter, Columns::Active as i32)
 				.get::<bool>()
 				.unwrap();
 			
-			let n_inconsistent = model
+			let n_inconsistent = tree_store
 				.get_value(&iter, Columns::Inconsistent as i32)
 				.get::<bool>()
 				.unwrap();
@@ -213,13 +227,13 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	let mut path_backwards = path.clone();
 	loop {
 		if path_backwards.prev() {
-			let iter = model.get_iter(&path_backwards).unwrap();
-			let n_active = model
+			let iter = tree_store.get_iter(&path_backwards).unwrap();
+			let n_active = tree_store
 				.get_value(&iter, Columns::Active as i32)
 				.get::<bool>()
 				.unwrap();
 			
-			let n_inconsistent = model
+			let n_inconsistent = tree_store
 				.get_value(&iter, Columns::Inconsistent as i32)
 				.get::<bool>()
 				.unwrap();
@@ -237,29 +251,29 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	let mut path_up = path.clone();
 	loop {
 		if path_up.up() && path_up.get_depth() > 0 {
-			let iter = model.get_iter(&path_up).unwrap();
+			let iter = tree_store.get_iter(&path_up).unwrap();
 			if level_inconsistent {
-				model.set_value(&iter, Columns::Active as u32, &false.to_value());
+				tree_store.set_value(&iter, Columns::Active as u32, &false.to_value());
 			}
 			else
 			{
-				model.set_value(&iter, Columns::Active as u32, &active.to_value());
+				tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
 			}
-			model.set_value(&iter, Columns::Inconsistent as u32, &level_inconsistent.to_value());
+			tree_store.set_value(&iter, Columns::Inconsistent as u32, &level_inconsistent.to_value());
 		}
 		else {
 			break;
 		}
 	}
 	
-	fn activate_children(model: &gtk::TreeStore, mut path: gtk::TreePath, active : bool) {
+	fn activate_children(tree_store: &gtk::TreeStore, mut path: gtk::TreePath, active : bool) {
 		path.down();
 		loop {
-			if let Some(iter) = model.get_iter(&path)
+			if let Some(iter) = tree_store.get_iter(&path)
 			{
-				model.set_value(&iter, Columns::Active as u32, &active.to_value());
-				model.set_value(&iter, Columns::Inconsistent as u32, &false.to_value());
-				activate_children(model, path.clone(), active);
+				tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
+				tree_store.set_value(&iter, Columns::Inconsistent as u32, &false.to_value());
+				activate_children(tree_store, path.clone(), active);
 				path.next();
 			}
 			else
@@ -268,9 +282,9 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 			}
 		}
 	}
-	activate_children(model, path, active);
+	activate_children(tree_store, path, active);
 	
-	println!("Inconsistent: {}", level_inconsistent);
+	//println!("Inconsistent: {}", level_inconsistent);
 }
 
 fn build_ui(application: &gtk::Application) {
@@ -304,7 +318,7 @@ fn build_ui(application: &gtk::Application) {
 	let mut log_source_ex3 = LogSource {name: "example3".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
 	let mut log_source_ex4_1 = LogSource {name: "example4_1".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
 	let mut log_source_ex4_2 = LogSource {name: "example4_2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let mut log_source_ex4 = LogSource {name: "example4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
+	let mut log_source_ex4 = LogSource {name: "examale4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
 	
 	let mut log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
@@ -317,8 +331,9 @@ fn build_ui(application: &gtk::Application) {
 	// left pane
     let left_tree = TreeView::new();
     let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type()]);
+	let left_store_sort = gtk::TreeModelSort::new(&left_store);
 
-    left_tree.set_model(Some(&left_store));
+	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
     left_tree.set_headers_visible(true);
 	
 	// Column for fixed toggles
@@ -326,18 +341,20 @@ fn build_ui(application: &gtk::Application) {
 		let column = gtk::TreeViewColumn::new();
 		// https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
 		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Log sources");
-		//column.set_sort_indicator(true);
-		//column.set_clickable(true);
-        column.set_fixed_width(300);
+		column.set_title("Log source");
+		column.set_fixed_width(300);
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(Columns::Text as i32);
 		
 		{
 			let renderer_toggle = gtk::CellRendererToggle::new();
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			let model_clone = left_store.clone();
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled(&model_clone, w, path));
+			let store_clone = left_store.clone();
+			let model_sort_clone = left_store_sort.clone();
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&store_clone, &model_sort_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", Columns::Active as i32);
 			column.add_attribute(&renderer_toggle, "inconsistent", Columns::Inconsistent as i32);
