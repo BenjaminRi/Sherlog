@@ -9,7 +9,7 @@ use gtk::prelude::*;
 #[allow(unused_imports)]
 use gtk::{
     ApplicationWindow, ButtonsType, CellRendererPixbuf, CellRendererText, DialogFlags,
-    MessageDialog, MessageType, Orientation, TreeStore, TreeView, TreeViewColumn, WindowPosition,
+    MessageDialog, MessageType, Orientation, TreeStore, ListStore, TreeView, TreeViewColumn, WindowPosition,
 };
 
 use std::env::args;
@@ -18,9 +18,32 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use chrono::prelude::*;
 
+#[allow(dead_code)]
+enum LogLevel {
+	Critical,
+    Error,
+    Warning,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevel {
+	fn to_string(&self) -> String {
+		match self {
+			LogLevel::Critical => "Critical".to_string(),
+			LogLevel::Error => "Error".to_string(),
+			LogLevel::Warning => "Warning".to_string(),
+			LogLevel::Info => "Info".to_string(),
+			LogLevel::Debug => "Debug".to_string(),
+			LogLevel::Trace => "Trace".to_string(),
+		}
+	}
+}
+
 struct LogEntry {
 	timestamp : chrono::DateTime<Utc>,
-	severity : log::Level,
+	severity : LogLevel,
 	message : String,
 }
 
@@ -38,7 +61,7 @@ impl Default for LogEntry {
     fn default() -> LogEntry {
         LogEntry {
             timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
-            severity : log::Level::Error,
+            severity : LogLevel::Error,
             message: "".to_string(),
         }
     }
@@ -65,7 +88,7 @@ fn line_to_log_entry(line: &str) -> LogEntry {
 					let kind_str = &line[kind_offset..idx.0];
 					//println!("{}", &kind_str);
 					let kind = match kind_str {
-						"tq" => GlogSectionKind::TimestampUs,
+						"tq" => GlogSectionKind::TimestampMs,
 						"s" => GlogSectionKind::Severity,
 						"i" => GlogSectionKind::LogSource,
 						"m" => GlogSectionKind::Message,
@@ -93,11 +116,27 @@ fn line_to_log_entry(line: &str) -> LogEntry {
 						let value_str = &line[value_offset..idx.0-GLOG_SECTION_END_SZ];
 						//println!("Kind: {:?}, Value: {}", kind, value_str);
 						match kind {
-							GlogSectionKind::TimestampUs => {
-							
+							GlogSectionKind::TimestampMs => {
+								if let Ok(ts_milli) = value_str.parse::<u64>() {
+									let ts_sec   : u64 = ts_milli / 1000;
+									let ts_nano  : u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
+									if let Some(ndt) = NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano) {
+										log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+									} else {
+										//TODO: Notify of invalid datetime?
+										println!("MALFORMED Log datetime: {}", value_str);
+									}
+								} else {
+									//TODO: Notify of invalid timestamp?
+									println!("MALFORMED Log timestamp: {}", value_str);
+								}
 							},
 							GlogSectionKind::Severity => {
-							
+								if let Ok(glog_sev_u32) = value_str.parse::<u32>() {
+									if let Some(glog_sev) = GlogSeverity::from_u32(glog_sev_u32) {
+										log_entry.severity = normalize_glog_sev(glog_sev);
+									}
+								}
 							},
 							GlogSectionKind::Message => {
 								log_entry.message = value_str.to_string();
@@ -122,6 +161,17 @@ fn line_to_log_entry(line: &str) -> LogEntry {
 	log_entry
 }
 
+fn normalize_glog_sev(glog_sev : GlogSeverity) -> LogLevel {
+	return match glog_sev {
+		GlogSeverity::Critical => LogLevel::Critical,
+		GlogSeverity::Hardware => LogLevel::Critical,
+		GlogSeverity::Error    => LogLevel::Error,
+		GlogSeverity::Warning  => LogLevel::Warning,
+		GlogSeverity::Info     => LogLevel::Info,
+		GlogSeverity::None     => LogLevel::Critical,
+	}
+}
+
 const GLOG_SECTION_BEGIN : char = '[';
 const GLOG_SECTION_BEGIN_SZ : usize = 1; //GLOG_SECTION_BEGIN.len_utf8();
 const GLOG_INNER_DELIM : char = '|';
@@ -133,9 +183,32 @@ const GLOG_SECTION_END_SZ : usize = 1; //GLOG_SECTION_END.len_utf8();
 const GLOG_SECTION_DELIM : char = ':';
 //const GLOG_SECTION_DELIM_SZ : usize = 1; //GLOG_SECTION_DELIM.len_utf8();
 
+enum GlogSeverity
+{
+	Critical = 0,
+	Hardware = 1,
+	Error    = 2,
+	Warning  = 3,
+	Info     = 4,
+	None     = 5,
+}
+impl GlogSeverity {
+	fn from_u32(value: u32) -> Option<GlogSeverity> {
+		match value {
+			0 => Some(GlogSeverity::Critical),
+			1 => Some(GlogSeverity::Hardware),
+			2 => Some(GlogSeverity::Error),
+			3 => Some(GlogSeverity::Warning),
+			4 => Some(GlogSeverity::Info),
+			5 => Some(GlogSeverity::None),
+			_ => None
+		}
+	}
+}
+
 #[derive(Debug, PartialEq)]
 enum GlogSectionKind {
-	TimestampUs,
+	TimestampMs,
 	Severity,
 	LogSource,
 	Message,
@@ -152,10 +225,16 @@ enum GlogParserState {
 
 // -------------------------------------------------------------------------------------------------------------
 
-enum Columns {
+enum LogSourcesColumns {
     Active = 0,
 	Inconsistent = 1,
 	Text = 2,
+}
+
+enum LogEntriesColumns {
+    Timestamp = 0,
+	Severity = 1,
+	Message = 2,
 }
 
 fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
@@ -173,17 +252,17 @@ fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store: &gtk::TreeStore,
     _w: &W,
-    mut path: gtk::TreePath,
+    path: gtk::TreePath,
 ) {
-	println!("Path: {:?}", path.get_indices_with_depth());
+	//println!("Path: {:?}", path.get_indices_with_depth());
 	
     let iter = tree_store.get_iter(&path).unwrap();
     let mut active = tree_store
-        .get_value(&iter, Columns::Active as i32)
+        .get_value(&iter, LogSourcesColumns::Active as i32)
         .get::<bool>()
         .unwrap();
 	let mut inconsistent = tree_store
-        .get_value(&iter, Columns::Inconsistent as i32)
+        .get_value(&iter, LogSourcesColumns::Inconsistent as i32)
         .get::<bool>()
         .unwrap();
 	
@@ -195,8 +274,8 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		active = false;
 	}
 	
-    tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
-	tree_store.set_value(&iter, Columns::Inconsistent as u32, &inconsistent.to_value());
+    tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+	tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &inconsistent.to_value());
 	
 	let mut level_inconsistent = false;
 	
@@ -205,12 +284,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		path_forward.next();
 		if let Some(iter) = tree_store.get_iter(&path_forward) {
 			let n_active = tree_store
-				.get_value(&iter, Columns::Active as i32)
+				.get_value(&iter, LogSourcesColumns::Active as i32)
 				.get::<bool>()
 				.unwrap();
 			
 			let n_inconsistent = tree_store
-				.get_value(&iter, Columns::Inconsistent as i32)
+				.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
 				.get::<bool>()
 				.unwrap();
 			
@@ -229,12 +308,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		if path_backwards.prev() {
 			let iter = tree_store.get_iter(&path_backwards).unwrap();
 			let n_active = tree_store
-				.get_value(&iter, Columns::Active as i32)
+				.get_value(&iter, LogSourcesColumns::Active as i32)
 				.get::<bool>()
 				.unwrap();
 			
 			let n_inconsistent = tree_store
-				.get_value(&iter, Columns::Inconsistent as i32)
+				.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
 				.get::<bool>()
 				.unwrap();
 			
@@ -253,13 +332,13 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		if path_up.up() && path_up.get_depth() > 0 {
 			let iter = tree_store.get_iter(&path_up).unwrap();
 			if level_inconsistent {
-				tree_store.set_value(&iter, Columns::Active as u32, &false.to_value());
+				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &false.to_value());
 			}
 			else
 			{
-				tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
+				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
 			}
-			tree_store.set_value(&iter, Columns::Inconsistent as u32, &level_inconsistent.to_value());
+			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &level_inconsistent.to_value());
 		}
 		else {
 			break;
@@ -271,8 +350,8 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		loop {
 			if let Some(iter) = tree_store.get_iter(&path)
 			{
-				tree_store.set_value(&iter, Columns::Active as u32, &active.to_value());
-				tree_store.set_value(&iter, Columns::Inconsistent as u32, &false.to_value());
+				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+				tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
 				activate_children(tree_store, path.clone(), active);
 				path.next();
 			}
@@ -313,14 +392,14 @@ fn build_ui(application: &gtk::Application) {
     }
 	
 	//Vec::<LogEntry>::new()
-	let mut log_source_ex = LogSource {name: "example".to_string(), children: {LogSourceContents::Entries(log_entries) } };
-	let mut log_source_ex2 = LogSource {name: "example2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let mut log_source_ex3 = LogSource {name: "example3".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let mut log_source_ex4_1 = LogSource {name: "example4_1".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let mut log_source_ex4_2 = LogSource {name: "example4_2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let mut log_source_ex4 = LogSource {name: "examale4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
+	let log_source_ex = LogSource {name: "example".to_string(), children: {LogSourceContents::Entries(log_entries) } };
+	let log_source_ex2 = LogSource {name: "example2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let log_source_ex3 = LogSource {name: "example3".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let log_source_ex4_1 = LogSource {name: "example4_1".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let log_source_ex4_2 = LogSource {name: "example4_2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
+	let log_source_ex4 = LogSource {name: "examale4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
 	
-	let mut log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(
+	let log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
 
     window.set_title("Sherlog");
@@ -329,10 +408,8 @@ fn build_ui(application: &gtk::Application) {
     window.set_default_size(600, 400);
 	
 	// left pane
-    let left_tree = TreeView::new();
     let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type()]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
-
 	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
     left_tree.set_headers_visible(true);
 	
@@ -345,7 +422,7 @@ fn build_ui(application: &gtk::Application) {
 		column.set_fixed_width(300);
 		column.set_sort_indicator(true);
 		column.set_clickable(true);
-		column.set_sort_column_id(Columns::Text as i32);
+		column.set_sort_column_id(LogSourcesColumns::Text as i32);
 		
 		{
 			let renderer_toggle = gtk::CellRendererToggle::new();
@@ -356,38 +433,34 @@ fn build_ui(application: &gtk::Application) {
 			let model_sort_clone = left_store_sort.clone();
 			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&store_clone, &model_sort_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
-			column.add_attribute(&renderer_toggle, "active", Columns::Active as i32);
-			column.add_attribute(&renderer_toggle, "inconsistent", Columns::Inconsistent as i32);
+			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
+			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
 		}
 		
 		{
 			let renderer_text = CellRendererText::new();
 			renderer_text.set_alignment(0.0, 0.0);
 			column.pack_start(&renderer_text, false);
-			column.add_attribute(&renderer_text, "text", Columns::Text as i32);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
 		left_tree.append_column(&column);
 	}
 	
-	
 	fn build_left_store(store: &TreeStore, log_source: &LogSource, parent: Option<&gtk::TreeIter>) {
-		let new_parent = store.insert_with_values(parent, None, &[Columns::Active as u32, Columns::Inconsistent as u32, Columns::Text as u32], &[&false, &false, &log_source.name]);
+		let new_parent = store.insert_with_values(parent, None, &[LogSourcesColumns::Active as u32, LogSourcesColumns::Inconsistent as u32, LogSourcesColumns::Text as u32], &[&false, &false, &log_source.name]);
 		match &log_source.children {
 			LogSourceContents::Sources(v) => {
 				for source in v {
 					build_left_store(store, source, Some(&new_parent));
 				}
 			},
-			LogSourceContents::Entries(v) => {
-				//DEBUG:
-				//for entry in v {
-				//	store.insert_with_values(Some(&new_parent), None, &[Columns::Active as u32, Columns::Inconsistent as u32, Columns::Text as u32], &[&true, &false, &entry.message]);
-				//}
+			LogSourceContents::Entries(_v) => {
 				()
 			},
 		}
 	}
 	build_left_store(&left_store, &log_source_root, None);
+	left_tree.expand_all();
 	
 	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
 
@@ -402,32 +475,94 @@ fn build_ui(application: &gtk::Application) {
 	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
 	scrolled_window.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 	//scrolled_window.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-	let listbox = gtk::ListBox::new();
-	/*for entry in log_entries {
-		let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-		let label = gtk::Label::new(Some(&entry.message));
-		label.set_selectable(true);
-		//let button = gtk::Button::new_with_label("Click me!");
-		let list_box_row = gtk::ListBoxRow::new();
-		hbox.add(&label);
-		//hbox.add(&button);
-		list_box_row.add(&hbox);
-		listbox.add(&list_box_row);
-	}*/
-	let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-	let label = gtk::Label::new(Some(&"This is a test!"));
-	label.set_selectable(true);
-	//let button = gtk::Button::new_with_label("Click me!");
-	let list_box_row = gtk::ListBoxRow::new();
-	hbox.add(&label);
-	//hbox.add(&button);
-	list_box_row.add(&hbox);
-	listbox.add(&list_box_row);
 	
 	
-	scrolled_window.add(&listbox);
+	//Right side:
+	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type()]);
+	let right_store_sort = gtk::TreeModelSort::new(&right_store);
+	let right_tree = gtk::TreeView::new_with_model(&right_store_sort);
+    right_tree.set_headers_visible(true);
+	
+	fn build_right_store(store: &ListStore, log_source: &LogSource) {
+		match &log_source.children {
+			LogSourceContents::Sources(v) => {
+				for source in v {
+					build_right_store(store, source);
+				}
+			},
+			LogSourceContents::Entries(v) => {
+				for entry in v {
+					let date_str = entry.timestamp.format("%F %T%.3f").to_string();
+					//let date_str = entry.timestamp.to_rfc3339_opts(SecondsFormat::Millis, false);
+					store.insert_with_values(None, 
+					&[LogEntriesColumns::Timestamp as u32,
+					LogEntriesColumns::Severity as u32,
+					LogEntriesColumns::Message as u32],
+					&[&date_str,
+					&entry.severity.to_string(),
+					&entry.message
+					]);
+				}
+				()
+			},
+		}
+	}
+
+	{
+		let column = gtk::TreeViewColumn::new();
+		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Timestamp");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogEntriesColumns::Timestamp as i32);
+		//column.set_resizable(true);
+		//column.set_reorderable(true);
+		let renderer_text = CellRendererText::new();
+		renderer_text.set_alignment(0.0, 0.0);
+		column.pack_start(&renderer_text, false);
+		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Timestamp as i32);
+		right_tree.append_column(&column);
+	}
+	
+	{
+		let column = gtk::TreeViewColumn::new();
+		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Severity");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogEntriesColumns::Severity as i32);
+		//column.set_resizable(true);
+		//column.set_reorderable(true);
+		let renderer_text = CellRendererText::new();
+		renderer_text.set_alignment(0.0, 0.0);
+		column.pack_start(&renderer_text, false);
+		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Severity as i32);
+		
+		//column.set_cell_data_func(renderer_text, None);
+		
+		right_tree.append_column(&column);
+	}
+	
+	{
+		let column = gtk::TreeViewColumn::new();
+		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Message");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogEntriesColumns::Message as i32);
+		//column.set_resizable(true);
+		//column.set_reorderable(true);
+		let renderer_text = CellRendererText::new();
+		renderer_text.set_alignment(0.0, 0.0);
+		column.pack_start(&renderer_text, false);
+		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Message as i32);
+		right_tree.append_column(&column);
+	}
+	
+	build_right_store(&right_store, &log_source_root);
+	
+	scrolled_window.add(&right_tree);
 	split_pane.pack_start(&scrolled_window, true, true, 10);
-	//split_pane.add(&scrolled_window);
 
     window.add(&split_pane);
     window.show_all();
@@ -458,15 +593,6 @@ let dt : DateTime::<Utc> = DateTime::<FixedOffset>::parse_from_rfc3339("1996-12-
 println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));*/
 
 /*
-enum Severity
-{
-  SEV_CRITICAL      = 0,
-  SEV_HARDWARE      = 1,
-  SEV_ERROR         = 2,
-  SEV_WARNING       = 3,
-  SEV_INFO          = 4,
-  SEV_NONE          = 5,
-}; 
 
 enum Severity
 {
