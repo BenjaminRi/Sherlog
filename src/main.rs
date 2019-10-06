@@ -515,10 +515,10 @@ fn build_ui(application: &gtk::Application) {
 		column.set_sort_indicator(true);
 		column.set_clickable(true);
 		column.set_sort_column_id(LogEntriesColumns::Timestamp as i32);
-		//column.set_resizable(true);
-		//column.set_reorderable(true);
+		column.set_resizable(true);
+		column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
-		renderer_text.set_alignment(0.0, 0.0);
+		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
 		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Timestamp as i32);
 		right_tree.append_column(&column);
@@ -531,14 +531,29 @@ fn build_ui(application: &gtk::Application) {
 		column.set_sort_indicator(true);
 		column.set_clickable(true);
 		column.set_sort_column_id(LogEntriesColumns::Severity as i32);
-		//column.set_resizable(true);
-		//column.set_reorderable(true);
+		column.set_resizable(true);
+		column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
-		renderer_text.set_alignment(0.0, 0.0);
+		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
 		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Severity as i32);
 		
-		//column.set_cell_data_func(renderer_text, None);
+		gtk::TreeViewColumnExt::set_cell_data_func(&column, &renderer_text, Some(Box::new(move |_column, cell, model, iter| {
+			//let path = model.get_path(iter);
+			let sev = model
+				.get_value(&iter, LogEntriesColumns::Severity as i32)
+				.get::<String>()
+				.unwrap();
+			//println!("Severity: {}", sev);
+			let color = match sev.as_ref() {
+				"Critical" => "#FF0000",
+				"Error"    => "#FF0000",
+				"Warning"  => "#FFF200",
+				_          => "#FFFFFF"
+			};
+			cell.set_property("cell-background", &color).unwrap();
+		})));
+		//gtk::CellLayoutExt::set_cell_data_func(&column, &renderer_text, None);
 		
 		right_tree.append_column(&column);
 	}
@@ -550,10 +565,10 @@ fn build_ui(application: &gtk::Application) {
 		column.set_sort_indicator(true);
 		column.set_clickable(true);
 		column.set_sort_column_id(LogEntriesColumns::Message as i32);
-		//column.set_resizable(true);
-		//column.set_reorderable(true);
+		column.set_resizable(true);
+		column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
-		renderer_text.set_alignment(0.0, 0.0);
+		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
 		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Message as i32);
 		right_tree.append_column(&column);
