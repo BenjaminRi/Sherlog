@@ -6,6 +6,9 @@ extern crate chrono;
 use gio::prelude::*;
 use gtk::prelude::*;
 
+mod model;
+mod parse;
+
 #[allow(unused_imports)]
 use gtk::{
     ApplicationWindow, ButtonsType, CellRendererPixbuf, CellRendererText, DialogFlags,
@@ -16,214 +19,6 @@ use std::env::args;
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use chrono::prelude::*;
-
-#[allow(dead_code)]
-enum LogLevel {
-	Critical,
-    Error,
-    Warning,
-    Info,
-    Debug,
-    Trace,
-}
-
-impl LogLevel {
-	fn to_string(&self) -> String {
-		match self {
-			LogLevel::Critical => "Critical".to_string(),
-			LogLevel::Error => "Error".to_string(),
-			LogLevel::Warning => "Warning".to_string(),
-			LogLevel::Info => "Info".to_string(),
-			LogLevel::Debug => "Debug".to_string(),
-			LogLevel::Trace => "Trace".to_string(),
-		}
-	}
-}
-
-struct LogEntry {
-	timestamp : chrono::DateTime<Utc>,
-	severity : LogLevel,
-	message : String,
-}
-
-enum LogSourceContents {
-	Sources(Vec::<LogSource>),
-	Entries(Vec::<LogEntry>),
-}
-
-struct LogSource {
-	name : String,
-	children : LogSourceContents,
-}
-
-impl Default for LogEntry {
-    fn default() -> LogEntry {
-        LogEntry {
-            timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
-            severity : LogLevel::Error,
-            message: "".to_string(),
-        }
-    }
-}
-
-// GLOG parser ----------------------------------------------------------------------
-
-fn line_to_log_entry(line: &str) -> LogEntry {
-	let mut log_entry = LogEntry { ..Default::default() };
-	let mut parser = GlogParserState::PreSection;
-	for idx in line.char_indices() {
-		parser = match parser {
-			GlogParserState::PreSection => {
-				if idx.1 == GLOG_SECTION_BEGIN {
-					GlogParserState::SectionKind(idx.0 + GLOG_SECTION_BEGIN_SZ)
-				} else if idx.1 == GLOG_NEWLINE_R || idx.1 == GLOG_NEWLINE_N {
-					GlogParserState::PreSection
-				} else {
-					GlogParserState::Invalid
-				}
-			},
-			GlogParserState::SectionKind(kind_offset) => {
-				if idx.1 == GLOG_INNER_DELIM {
-					let kind_str = &line[kind_offset..idx.0];
-					//println!("{}", &kind_str);
-					let kind = match kind_str {
-						"tq" => GlogSectionKind::TimestampMs,
-						"s" => GlogSectionKind::Severity,
-						"i" => GlogSectionKind::LogSource,
-						"m" => GlogSectionKind::Message,
-						_ => GlogSectionKind::Unknown, //TODO: Notify of invalid sections?
-					};
-					GlogParserState::SectionValue(kind, idx.0 + GLOG_INNER_DELIM_SZ)
-				} else {
-					GlogParserState::SectionKind(kind_offset)
-				}
-			},
-			GlogParserState::SectionValue(kind, value_offset) => {
-				if idx.1 == GLOG_SECTION_END {
-					GlogParserState::SectionValuePost(kind, value_offset)
-				} else {
-					GlogParserState::SectionValue(kind, value_offset)
-				}
-			},
-			GlogParserState::SectionValuePost(kind, value_offset) => {
-				if idx.1 == GLOG_SECTION_DELIM || idx.1 == GLOG_NEWLINE_R || idx.1 == GLOG_NEWLINE_N {
-					if idx.1 == GLOG_SECTION_DELIM && kind == GlogSectionKind::Message {
-						//Message is always last - ignore "]:"
-						GlogParserState::SectionValue(kind, value_offset)
-					} else {
-						//Add field to log entry
-						let value_str = &line[value_offset..idx.0-GLOG_SECTION_END_SZ];
-						//println!("Kind: {:?}, Value: {}", kind, value_str);
-						match kind {
-							GlogSectionKind::TimestampMs => {
-								if let Ok(ts_milli) = value_str.parse::<u64>() {
-									let ts_sec   : u64 = ts_milli / 1000;
-									let ts_nano  : u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
-									if let Some(ndt) = NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano) {
-										log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
-									} else {
-										//TODO: Notify of invalid datetime?
-										println!("MALFORMED Log datetime: {}", value_str);
-									}
-								} else {
-									//TODO: Notify of invalid timestamp?
-									println!("MALFORMED Log timestamp: {}", value_str);
-								}
-							},
-							GlogSectionKind::Severity => {
-								if let Ok(glog_sev_u32) = value_str.parse::<u32>() {
-									if let Some(glog_sev) = GlogSeverity::from_u32(glog_sev_u32) {
-										log_entry.severity = normalize_glog_sev(glog_sev);
-									}
-								}
-							},
-							GlogSectionKind::Message => {
-								log_entry.message = value_str.to_string();
-							},
-							_ => (),
-						}
-						GlogParserState::PreSection
-					}
-				} else if idx.1 == GLOG_SECTION_END {
-					GlogParserState::SectionValuePost(kind, value_offset)
-				} else {
-					GlogParserState::SectionValue(kind, value_offset)
-				}
-			},
-			GlogParserState::Invalid => {
-				//TODO: Notify of invalid lines?
-				println!("MALFORMED Log line: {}", line);
-				break;
-			},
-		};
-	}
-	log_entry
-}
-
-fn normalize_glog_sev(glog_sev : GlogSeverity) -> LogLevel {
-	return match glog_sev {
-		GlogSeverity::Critical => LogLevel::Critical,
-		GlogSeverity::Hardware => LogLevel::Critical,
-		GlogSeverity::Error    => LogLevel::Error,
-		GlogSeverity::Warning  => LogLevel::Warning,
-		GlogSeverity::Info     => LogLevel::Info,
-		GlogSeverity::None     => LogLevel::Critical,
-	}
-}
-
-const GLOG_SECTION_BEGIN : char = '[';
-const GLOG_SECTION_BEGIN_SZ : usize = 1; //GLOG_SECTION_BEGIN.len_utf8();
-const GLOG_INNER_DELIM : char = '|';
-const GLOG_INNER_DELIM_SZ : usize = 1; //GLOG_INNER_DELIM.len_utf8();
-const GLOG_SECTION_END : char = ']';
-const GLOG_NEWLINE_R : char = '\r';
-const GLOG_NEWLINE_N : char = '\n';
-const GLOG_SECTION_END_SZ : usize = 1; //GLOG_SECTION_END.len_utf8();
-const GLOG_SECTION_DELIM : char = ':';
-//const GLOG_SECTION_DELIM_SZ : usize = 1; //GLOG_SECTION_DELIM.len_utf8();
-
-enum GlogSeverity
-{
-	Critical = 0,
-	Hardware = 1,
-	Error    = 2,
-	Warning  = 3,
-	Info     = 4,
-	None     = 5,
-}
-impl GlogSeverity {
-	fn from_u32(value: u32) -> Option<GlogSeverity> {
-		match value {
-			0 => Some(GlogSeverity::Critical),
-			1 => Some(GlogSeverity::Hardware),
-			2 => Some(GlogSeverity::Error),
-			3 => Some(GlogSeverity::Warning),
-			4 => Some(GlogSeverity::Info),
-			5 => Some(GlogSeverity::None),
-			_ => None
-		}
-	}
-}
-
-#[derive(Debug, PartialEq)]
-enum GlogSectionKind {
-	TimestampMs,
-	Severity,
-	LogSource,
-	Message,
-	Unknown,
-}
-
-enum GlogParserState {
-	PreSection,                               //expect '[', ignore '\r' or '\n'
-	SectionKind(usize),                       //expect kind until '|' (kind may not contain '|')
-	SectionValue(GlogSectionKind, usize),     //expect value until ']'
-	SectionValuePost(GlogSectionKind, usize), //expect ':' or '\r' or '\n', process line
-	Invalid,                                  //park in this state on parser error
-}
-
-// -------------------------------------------------------------------------------------------------------------
 
 enum LogSourcesColumns {
     Active = 0,
@@ -235,6 +30,7 @@ enum LogEntriesColumns {
     Timestamp = 0,
 	Severity = 1,
 	Message = 2,
+	Visible = 3,
 }
 
 fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
@@ -379,27 +175,27 @@ fn build_ui(application: &gtk::Application) {
 		match String::from_utf8_lossy(&buf) {
 			std::borrow::Cow::Borrowed(line_str) => {
 				//println!("{}", line_str);
-				let curr_entry = line_to_log_entry(&line_str);
+				let curr_entry = parse::glog::line_to_log_entry(&line_str);
 				log_entries.push(curr_entry);
 				buf.clear();
 			},
 			std::borrow::Cow::Owned(line_str) => {
-				line_to_log_entry(&line_str);
+				parse::glog::line_to_log_entry(&line_str);
 				//TODO: Notify of invalid lines?
 				println!("MALFORMED UTF-8: {}", line_str);
 			},
 		}
     }
 	
-	//Vec::<LogEntry>::new()
-	let log_source_ex = LogSource {name: "example".to_string(), children: {LogSourceContents::Entries(log_entries) } };
-	let log_source_ex2 = LogSource {name: "example2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let log_source_ex3 = LogSource {name: "example3".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let log_source_ex4_1 = LogSource {name: "example4_1".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let log_source_ex4_2 = LogSource {name: "example4_2".to_string(), children: {LogSourceContents::Entries(Vec::<LogEntry>::new()) } };
-	let log_source_ex4 = LogSource {name: "examale4".to_string(), children: {LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
+	//Vec::<model::LogEntry>::new()
+	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
+	let log_source_ex2 = model::LogSource {name: "example2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex3 = model::LogSource {name: "example3".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4_1 = model::LogSource {name: "example4_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4_2 = model::LogSource {name: "example4_2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4 = model::LogSource {name: "examale4".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
 	
-	let log_source_root = LogSource {name: "Root LogSource".to_string(), children: {LogSourceContents::Sources(
+	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
 
     window.set_title("Sherlog");
@@ -446,15 +242,15 @@ fn build_ui(application: &gtk::Application) {
 		left_tree.append_column(&column);
 	}
 	
-	fn build_left_store(store: &TreeStore, log_source: &LogSource, parent: Option<&gtk::TreeIter>) {
+	fn build_left_store(store: &TreeStore, log_source: &model::LogSource, parent: Option<&gtk::TreeIter>) {
 		let new_parent = store.insert_with_values(parent, None, &[LogSourcesColumns::Active as u32, LogSourcesColumns::Inconsistent as u32, LogSourcesColumns::Text as u32], &[&false, &false, &log_source.name]);
 		match &log_source.children {
-			LogSourceContents::Sources(v) => {
+			model::LogSourceContents::Sources(v) => {
 				for source in v {
 					build_left_store(store, source, Some(&new_parent));
 				}
 			},
-			LogSourceContents::Entries(_v) => {
+			model::LogSourceContents::Entries(_v) => {
 				()
 			},
 		}
@@ -478,29 +274,33 @@ fn build_ui(application: &gtk::Application) {
 	
 	
 	//Right side:
-	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type()]);
-	let right_store_sort = gtk::TreeModelSort::new(&right_store);
-	let right_tree = gtk::TreeView::new_with_model(&right_store_sort);
+	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), gtk::Type::Bool]);
+	let right_store_filter = gtk::TreeModelFilter::new(&right_store, None);
+	right_store_filter.set_visible_column(LogEntriesColumns::Visible as i32);
+	let left_store_filter_sort = gtk::TreeModelSort::new(&right_store_filter);
+	let right_tree = gtk::TreeView::new_with_model(&left_store_filter_sort);
     right_tree.set_headers_visible(true);
 	
-	fn build_right_store(store: &ListStore, log_source: &LogSource) {
+	fn build_right_store(store: &ListStore, log_source: &model::LogSource) {
 		match &log_source.children {
-			LogSourceContents::Sources(v) => {
+			model::LogSourceContents::Sources(v) => {
 				for source in v {
 					build_right_store(store, source);
 				}
 			},
-			LogSourceContents::Entries(v) => {
+			model::LogSourceContents::Entries(v) => {
 				for entry in v {
 					let date_str = entry.timestamp.format("%F %T%.3f").to_string();
 					//let date_str = entry.timestamp.to_rfc3339_opts(SecondsFormat::Millis, false);
 					store.insert_with_values(None, 
 					&[LogEntriesColumns::Timestamp as u32,
 					LogEntriesColumns::Severity as u32,
-					LogEntriesColumns::Message as u32],
+					LogEntriesColumns::Message as u32,
+					LogEntriesColumns::Visible as u32],
 					&[&date_str,
 					&entry.severity.to_string(),
-					&entry.message
+					&entry.message,
+					&(true) //entry.severity == model::LogLevel::Error
 					]);
 				}
 				()
