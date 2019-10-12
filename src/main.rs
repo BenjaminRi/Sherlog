@@ -141,10 +141,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	
 	let mut level_inconsistent = false;
 	
-	let mut path_forward = path.clone();
-	loop {
+
+	
+	{
+		let mut path_forward = path.clone();
 		path_forward.next();
-		if let Some(iter) = tree_store.get_iter(&path_forward) {
+		while let Some(iter) = tree_store.get_iter(&path_forward) {
 			let n_active = tree_store
 				.get_value(&iter, LogSourcesColumns::Active as i32)
 				.get::<bool>()
@@ -159,15 +161,13 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 				level_inconsistent = true;
 				break;
 			}
-		}
-		else {
-			break;
+			path_forward.next();
 		}
 	}
 	
-	let mut path_backwards = path.clone();
-	loop {
-		if path_backwards.prev() {
+	{
+		let mut path_backwards = path.clone();
+		while path_backwards.prev() {
 			let iter = tree_store.get_iter(&path_backwards).unwrap();
 			let n_active = tree_store
 				.get_value(&iter, LogSourcesColumns::Active as i32)
@@ -184,14 +184,11 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 				break;
 			}
 		}
-		else {
-			break;
-		}
 	}
 	
+	{
 	let mut path_up = path.clone();
-	loop {
-		if path_up.up() && path_up.get_depth() > 0 {
+		while path_up.up() && path_up.get_depth() > 0 {
 			let iter = tree_store.get_iter(&path_up).unwrap();
 			if level_inconsistent {
 				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &false.to_value());
@@ -202,25 +199,16 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 			}
 			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &level_inconsistent.to_value());
 		}
-		else {
-			break;
-		}
 	}
 	
 	fn activate_children(tree_store: &gtk::TreeStore, mut path: gtk::TreePath, active : bool) {
 		path.down();
-		loop {
-			if let Some(iter) = tree_store.get_iter(&path)
-			{
-				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
-				tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
-				activate_children(tree_store, path.clone(), active);
-				path.next();
-			}
-			else
-			{
-				break;
-			}
+		while let Some(iter) = tree_store.get_iter(&path)
+		{
+			tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
+			activate_children(tree_store, path.clone(), active);
+			path.next();
 		}
 	}
 	activate_children(tree_store, path, active);
