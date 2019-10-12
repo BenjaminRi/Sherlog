@@ -67,6 +67,22 @@ impl LogSourceExt {
 			},
 		}
 	}
+	fn generate_ids(&mut self) -> u32 {
+		match &mut self.children {
+			LogSourceContentsExt::Sources(v) => {
+				let mut id_idx = self.id;
+				for source in v {
+					id_idx += 1;
+					source.id = id_idx;
+					id_idx = source.generate_ids();
+				}
+				id_idx
+			},
+			LogSourceContentsExt::Entries(_v) => {
+				self.id
+			},
+		}
+	}
 }
 
 enum LogSourcesColumns {
@@ -243,7 +259,8 @@ fn build_ui(application: &gtk::Application) {
 	
 	//Vec::<model::LogEntry>::new()
 	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
-	let log_source_ex2 = model::LogSource {name: "example2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex2_1 = model::LogSource {name: "example2_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex2 = model::LogSource {name: "example2".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex2_1]) } };
 	let log_source_ex3 = model::LogSource {name: "example3".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
 	let log_source_ex4_1 = model::LogSource {name: "example4_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
 	let log_source_ex4_2 = model::LogSource {name: "example4_2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
@@ -254,6 +271,7 @@ fn build_ui(application: &gtk::Application) {
 	
 	
 	let mut log_source_root_ext = extend_log_source(log_source_root);
+	log_source_root_ext.generate_ids();
 	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
@@ -325,7 +343,7 @@ fn build_ui(application: &gtk::Application) {
 			&false,
 			&false,
 			&log_source.name,
-			&log_source.child_cnt
+			&log_source.id
 			]);
 		match &log_source.children {
 			LogSourceContentsExt::Sources(v) => {
