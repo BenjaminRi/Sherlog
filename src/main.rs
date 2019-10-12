@@ -165,6 +165,10 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 fn build_ui(application: &gtk::Application) {
     let window = gtk::ApplicationWindow::new(application);
 	//window.set_icon_from_file("../images/sherlog_icon.png");
+    window.set_title("Sherlog");
+    window.set_border_width(10);
+    window.set_position(gtk::WindowPosition::Center);
+    window.set_default_size(600, 400);
 	
 	let file = File::open("../logfiles/example.glog").expect("Could not open file");
     let mut reader = BufReader::new(file);
@@ -198,10 +202,6 @@ fn build_ui(application: &gtk::Application) {
 	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
 
-    window.set_title("Sherlog");
-    window.set_border_width(10);
-    window.set_position(gtk::WindowPosition::Center);
-    window.set_default_size(600, 400);
 	
 	// left pane
     let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type()]);
@@ -225,8 +225,8 @@ fn build_ui(application: &gtk::Application) {
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			let store_clone = left_store.clone();
-			let model_sort_clone = left_store_sort.clone();
+			let store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
+			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
 			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&store_clone, &model_sort_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
@@ -261,16 +261,16 @@ fn build_ui(application: &gtk::Application) {
 	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
 
     split_pane.set_size_request(-1, -1);
-	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-	scrolled_window.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-	//scrolled_window.set_property("min-content-width", &200);
-	scrolled_window.add(&left_tree);
-	split_pane.pack_start(&scrolled_window, false, false, 0);
+	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+	//scrolled_window_left.set_property("min-content-width", &200);
+	scrolled_window_left.add(&left_tree);
+	split_pane.pack_start(&scrolled_window_left, false, false, 0);
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
-	let scrolled_window = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-	scrolled_window.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
-	//scrolled_window.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+	let scrolled_window_right = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window_right.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
+	//scrolled_window_right.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	
 	
 	//Right side:
@@ -376,8 +376,8 @@ fn build_ui(application: &gtk::Application) {
 	
 	build_right_store(&right_store, &log_source_root);
 	
-	scrolled_window.add(&right_tree);
-	split_pane.pack_start(&scrolled_window, true, true, 10);
+	scrolled_window_right.add(&right_tree);
+	split_pane.pack_start(&scrolled_window_right, true, true, 10);
 
     window.add(&split_pane);
     window.show_all();
