@@ -20,10 +20,60 @@ use std::env::args;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+// Extended log source (not part of the API)
+enum LogSourceContentsExt {
+	Sources(Vec::<LogSourceExt>),
+	Entries(Vec::<model::LogEntry>),
+}
+
+// Extended log source (not part of the API)
+struct LogSourceExt {
+	name : String,
+	id : u32,
+	child_cnt : u64,
+	children : LogSourceContentsExt,
+}
+
+fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
+	let children = match log_source.children {
+		model::LogSourceContents::Sources(v) => {
+			let mut contents = Vec::<LogSourceExt>::new();
+			contents.reserve(v.len());
+			for source in v {
+				contents.push(extend_log_source(source));
+			}
+			LogSourceContentsExt::Sources(contents)
+		},
+		model::LogSourceContents::Entries(v) => {
+			LogSourceContentsExt::Entries(v)
+		},
+	};
+	LogSourceExt {name: log_source.name, id: 0, child_cnt: 0, children: children}
+}
+
+impl LogSourceExt {
+	fn calc_child_cnt(&mut self) {
+		self.child_cnt = match &mut self.children {
+			LogSourceContentsExt::Sources(v) => {
+				let mut child_cnt : u64 = 0;
+				for source in v {
+					source.calc_child_cnt();
+					child_cnt += source.child_cnt;
+				}
+				child_cnt
+			},
+			LogSourceContentsExt::Entries(v) => {
+				v.len() as u64
+			},
+		}
+	}
+}
+
 enum LogSourcesColumns {
     Active = 0,
 	Inconsistent = 1,
 	Text = 2,
+	ChildCount = 3,
 }
 
 enum LogEntriesColumns {
@@ -201,10 +251,13 @@ fn build_ui(application: &gtk::Application) {
 	
 	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
-
+	
+	
+	let mut log_source_root_ext = extend_log_source(log_source_root);
+	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
-    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type()]);
+    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type(), gtk::Type::U64]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
 	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
     left_tree.set_headers_visible(true);
@@ -242,20 +295,50 @@ fn build_ui(application: &gtk::Application) {
 		left_tree.append_column(&column);
 	}
 	
-	fn build_left_store(store: &TreeStore, log_source: &model::LogSource, parent: Option<&gtk::TreeIter>) {
-		let new_parent = store.insert_with_values(parent, None, &[LogSourcesColumns::Active as u32, LogSourcesColumns::Inconsistent as u32, LogSourcesColumns::Text as u32], &[&false, &false, &log_source.name]);
+	{
+		let column = gtk::TreeViewColumn::new();
+		column.set_title("Entries");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
+		
+		{
+			let renderer_text = CellRendererText::new();
+			renderer_text.set_alignment(0.0, 0.0);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
+		}
+		left_tree.append_column(&column);
+	}
+	
+	fn build_left_store(store: &TreeStore, log_source: &LogSourceExt, parent: Option<&gtk::TreeIter>) {
+		let new_parent = store.insert_with_values(
+			parent,
+			None,
+			&[
+			LogSourcesColumns::Active as u32,
+			LogSourcesColumns::Inconsistent as u32,
+			LogSourcesColumns::Text as u32,
+			LogSourcesColumns::ChildCount as u32,
+			],
+			&[
+			&false,
+			&false,
+			&log_source.name,
+			&log_source.child_cnt
+			]);
 		match &log_source.children {
-			model::LogSourceContents::Sources(v) => {
+			LogSourceContentsExt::Sources(v) => {
 				for source in v {
 					build_left_store(store, source, Some(&new_parent));
 				}
 			},
-			model::LogSourceContents::Entries(_v) => {
+			LogSourceContentsExt::Entries(_v) => {
 				()
 			},
 		}
 	}
-	build_left_store(&left_store, &log_source_root, None);
+	build_left_store(&left_store, &log_source_root_ext, None);
 	left_tree.expand_all();
 	
 	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
@@ -281,14 +364,14 @@ fn build_ui(application: &gtk::Application) {
 	let right_tree = gtk::TreeView::new_with_model(&left_store_filter_sort);
     right_tree.set_headers_visible(true);
 	
-	fn build_right_store(store: &ListStore, log_source: &model::LogSource) {
+	fn build_right_store(store: &ListStore, log_source: &LogSourceExt) {
 		match &log_source.children {
-			model::LogSourceContents::Sources(v) => {
+			LogSourceContentsExt::Sources(v) => {
 				for source in v {
 					build_right_store(store, source);
 				}
 			},
-			model::LogSourceContents::Entries(v) => {
+			LogSourceContentsExt::Entries(v) => {
 				for entry in v {
 					let date_str = entry.timestamp.format("%F %T%.3f").to_string();
 					//let date_str = entry.timestamp.to_rfc3339_opts(SecondsFormat::Millis, false);
@@ -374,7 +457,7 @@ fn build_ui(application: &gtk::Application) {
 		right_tree.append_column(&column);
 	}
 	
-	build_right_store(&right_store, &log_source_root);
+	build_right_store(&right_store, &log_source_root_ext);
 	
 	scrolled_window_right.add(&right_tree);
 	split_pane.pack_start(&scrolled_window_right, true, true, 10);
