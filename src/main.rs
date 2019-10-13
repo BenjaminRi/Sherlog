@@ -218,12 +218,15 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	
 	{
 		let mut path = gtk::TreePath::new_from_indicesv(&[0]);
-		if let Some(iter) = list_store.get_iter(&path) {
-			let visible = list_store
-				.get_value(&iter, LogEntriesColumns::Visible as i32)
-				.get::<bool>()
+		while let Some(iter) = list_store.get_iter(&path) {
+			let id = list_store
+				.get_value(&iter, LogEntriesColumns::SourceId as i32)
+				.get::<u32>()
 				.unwrap();
-			list_store.set_value(&iter, LogEntriesColumns::Visible as u32, &(!visible).to_value());
+			if sources.contains(&id) {
+				list_store.set_value(&iter, LogEntriesColumns::Visible as u32, &active.to_value());
+			}
+			path.next();
 		}
 	}
 	
