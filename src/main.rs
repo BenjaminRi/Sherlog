@@ -89,7 +89,8 @@ enum LogSourcesColumns {
     Active = 0,
 	Inconsistent = 1,
 	Text = 2,
-	ChildCount = 3,
+	Id = 3,
+	ChildCount = 4,
 }
 
 enum LogEntriesColumns {
@@ -97,22 +98,26 @@ enum LogEntriesColumns {
 	Severity = 1,
 	Message = 2,
 	Visible = 3,
+	SourceId = 4,
 }
 
 fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 	tree_store: &gtk::TreeStore,
+	list_store: &gtk::ListStore,
     model_sort: &gtk::TreeModelSort,
     _w: &W,
     path: gtk::TreePath,
 ) {
 	fixed_toggled(
 		tree_store,
+		list_store,
 		_w,
 		model_sort.convert_path_to_child_path(&path).unwrap());
 }
 
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store: &gtk::TreeStore,
+	list_store: &gtk::ListStore,
     _w: &W,
     path: gtk::TreePath,
 ) {
@@ -181,17 +186,46 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		}
 	}
 	
-	fn activate_children(tree_store: &gtk::TreeStore, mut path: gtk::TreePath, active : bool) {
+	fn activate_children(tree_store: &gtk::TreeStore, mut path: gtk::TreePath, active : bool, sources: &mut Vec::<u32>) {
 		path.down();
 		while let Some(iter) = tree_store.get_iter(&path)
 		{
-			tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+			let n_active = tree_store
+					.get_value(&iter, LogSourcesColumns::Active as i32)
+					.get::<bool>()
+					.unwrap();
+			if n_active != active {
+				let n_id = tree_store
+					.get_value(&iter, LogSourcesColumns::Id as i32)
+					.get::<u32>()
+					.unwrap();
+				sources.push(n_id);
+				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+			}
 			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
-			activate_children(tree_store, path.clone(), active);
+			activate_children(tree_store, path.clone(), active, sources);
 			path.next();
 		}
 	}
-	activate_children(tree_store, path, active);
+	let mut sources = Vec::<u32>::new();
+	let id = tree_store
+		.get_value(&iter, LogSourcesColumns::Id as i32)
+		.get::<u32>()
+		.unwrap();
+	sources.push(id);
+	activate_children(tree_store, path, active, &mut sources);
+	println!("Click: {:?} change to {}", sources, active);
+	
+	{
+		let mut path = gtk::TreePath::new_from_indicesv(&[0]);
+		if let Some(iter) = list_store.get_iter(&path) {
+			let visible = list_store
+				.get_value(&iter, LogEntriesColumns::Visible as i32)
+				.get::<bool>()
+				.unwrap();
+			list_store.set_value(&iter, LogEntriesColumns::Visible as u32, &(!visible).to_value());
+		}
+	}
 	
 	//println!("Inconsistent: {}", level_inconsistent);
 }
@@ -243,7 +277,8 @@ fn build_ui(application: &gtk::Application) {
 	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
-    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type(), gtk::Type::U64]);
+	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), gtk::Type::Bool, gtk::Type::U32]);
+    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type(), gtk::Type::U32, gtk::Type::U64]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
 	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
     left_tree.set_headers_visible(true);
@@ -264,9 +299,10 @@ fn build_ui(application: &gtk::Application) {
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			let store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
+			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
+			let right_store_clone = right_store.clone(); //GTK objects are refcounted, just clones ref
 			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&store_clone, &model_sort_clone, w, path));
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &right_store_clone, &model_sort_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
 			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
@@ -305,13 +341,15 @@ fn build_ui(application: &gtk::Application) {
 			LogSourcesColumns::Active as u32,
 			LogSourcesColumns::Inconsistent as u32,
 			LogSourcesColumns::Text as u32,
+			LogSourcesColumns::Id as u32,
 			LogSourcesColumns::ChildCount as u32,
 			],
 			&[
 			&false,
 			&false,
 			&log_source.name,
-			&log_source.id
+			&log_source.id,
+			&log_source.child_cnt
 			]);
 		match &log_source.children {
 			LogSourceContentsExt::Sources(v) => {
@@ -343,7 +381,6 @@ fn build_ui(application: &gtk::Application) {
 	
 	
 	//Right side:
-	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), gtk::Type::Bool]);
 	let right_store_filter = gtk::TreeModelFilter::new(&right_store, None);
 	right_store_filter.set_visible_column(LogEntriesColumns::Visible as i32);
 	let left_store_filter_sort = gtk::TreeModelSort::new(&right_store_filter);
@@ -365,11 +402,14 @@ fn build_ui(application: &gtk::Application) {
 					&[LogEntriesColumns::Timestamp as u32,
 					LogEntriesColumns::Severity as u32,
 					LogEntriesColumns::Message as u32,
-					LogEntriesColumns::Visible as u32],
+					LogEntriesColumns::Visible as u32,
+					LogEntriesColumns::SourceId as u32
+					],
 					&[&date_str,
 					&entry.severity.to_string(),
 					&entry.message,
-					&(true) //entry.severity == model::LogLevel::Error
+					&(true), //entry.severity == model::LogLevel::Error
+					&log_source.id
 					]);
 				}
 				()
