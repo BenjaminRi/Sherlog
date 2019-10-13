@@ -139,55 +139,34 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
 	tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &inconsistent.to_value());
 	
-	let mut level_inconsistent = false;
-	
-
-	
-	{
-		let mut path_forward = path.clone();
-		path_forward.next();
-		while let Some(iter) = tree_store.get_iter(&path_forward) {
-			let n_active = tree_store
-				.get_value(&iter, LogSourcesColumns::Active as i32)
-				.get::<bool>()
-				.unwrap();
-			
-			let n_inconsistent = tree_store
-				.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-				.get::<bool>()
-				.unwrap();
-			
-			if n_active != active || n_inconsistent {
-				level_inconsistent = true;
-				break;
+	fn check_inconsistent(tree_store: &gtk::TreeStore, mut path: gtk::TreePath) -> bool{
+		let mut prev_active = None;
+		if path.up() {
+			path.append_index(0);
+			while let Some(iter) = tree_store.get_iter(&path) {
+				let n_active = tree_store
+					.get_value(&iter, LogSourcesColumns::Active as i32)
+					.get::<bool>()
+					.unwrap();
+				
+				let n_inconsistent = tree_store
+					.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
+					.get::<bool>()
+					.unwrap();
+				
+				if (prev_active != None && Some(n_active) != prev_active) || n_inconsistent {
+					return true;
+				}
+				prev_active = Some(n_active);
+				path.next();
 			}
-			path_forward.next();
 		}
+		false
 	}
 	
 	{
-		let mut path_backwards = path.clone();
-		while path_backwards.prev() {
-			let iter = tree_store.get_iter(&path_backwards).unwrap();
-			let n_active = tree_store
-				.get_value(&iter, LogSourcesColumns::Active as i32)
-				.get::<bool>()
-				.unwrap();
-			
-			let n_inconsistent = tree_store
-				.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-				.get::<bool>()
-				.unwrap();
-			
-			if n_active != active || n_inconsistent {
-				level_inconsistent = true;
-				break;
-			}
-		}
-	}
-	
-	{
-	let mut path_up = path.clone();
+		let mut path_up = path.clone();
+		let mut level_inconsistent = check_inconsistent(tree_store, path_up.clone());
 		while path_up.up() && path_up.get_depth() > 0 {
 			let iter = tree_store.get_iter(&path_up).unwrap();
 			if level_inconsistent {
@@ -198,6 +177,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
 			}
 			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &level_inconsistent.to_value());
+			level_inconsistent = check_inconsistent(tree_store, path_up.clone());
 		}
 	}
 	
