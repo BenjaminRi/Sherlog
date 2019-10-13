@@ -6,6 +6,27 @@ use chrono::prelude::*;
 
 // GLOG parser ----------------------------------------------------------------------
 
+pub fn to_log_entries(mut reader: impl std::io::BufRead) -> Vec::<model::LogEntry> {
+	let mut log_entries = Vec::<model::LogEntry>::new();
+	let mut buf = Vec::<u8>::new();
+    while reader.read_until(b'\n', &mut buf).expect("read_until failed") != 0 {
+		match String::from_utf8_lossy(&buf) {
+			std::borrow::Cow::Borrowed(line_str) => {
+				//println!("{}", line_str);
+				let curr_entry = line_to_log_entry(&line_str);
+				log_entries.push(curr_entry);
+				buf.clear();
+			},
+			std::borrow::Cow::Owned(line_str) => {
+				line_to_log_entry(&line_str);
+				//TODO: Notify of invalid lines?
+				println!("MALFORMED UTF-8: {}", line_str);
+			},
+		}
+    }
+	log_entries
+}
+
 pub fn line_to_log_entry(line: &str) -> model::LogEntry {
 	let mut log_entry = model::LogEntry { ..Default::default() };
 	let mut parser = GlogParserState::PreSection;

@@ -242,25 +242,8 @@ fn build_ui(application: &gtk::Application) {
     window.set_default_size(600, 400);
 	
 	let file = File::open("../logfiles/example.glog").expect("Could not open file");
-    let mut reader = BufReader::new(file);
-
-	let mut log_entries = Vec::new();
-	let mut buf = Vec::<u8>::new();
-    while reader.read_until(b'\n', &mut buf).expect("read_until failed") != 0 {
-		match String::from_utf8_lossy(&buf) {
-			std::borrow::Cow::Borrowed(line_str) => {
-				//println!("{}", line_str);
-				let curr_entry = parse::glog::line_to_log_entry(&line_str);
-				log_entries.push(curr_entry);
-				buf.clear();
-			},
-			std::borrow::Cow::Owned(line_str) => {
-				parse::glog::line_to_log_entry(&line_str);
-				//TODO: Notify of invalid lines?
-				println!("MALFORMED UTF-8: {}", line_str);
-			},
-		}
-    }
+    let reader = BufReader::new(file);
+	let log_entries = parse::glog::to_log_entries(reader);
 	
 	//Vec::<model::LogEntry>::new()
 	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
