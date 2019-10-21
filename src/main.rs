@@ -5,6 +5,7 @@ extern crate chrono;
 
 use gio::prelude::*;
 use gtk::prelude::*;
+use std::env;
 
 mod model;
 mod parse;
@@ -240,6 +241,14 @@ fn build_ui(application: &gtk::Application) {
     window.set_border_width(10);
     window.set_position(gtk::WindowPosition::Center);
     window.set_default_size(600, 400);
+	
+	// Use clap or getopts for more complicated argument parsing:
+	// https://crates.io/crates/clap
+	// https://rust-lang-nursery.github.io/rust-cookbook/cli/arguments.html
+	// https://crates.io/crates/getopts
+	
+	let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
 	
 	let file = File::open("../logfiles/example.glog").expect("Could not open file");
     let reader = BufReader::new(file);
@@ -485,8 +494,14 @@ fn build_ui(application: &gtk::Application) {
 
 fn main() {
     let application =
-        gtk::Application::new(Some("com.github.BenjaminRi.Sherlog"), Default::default())
+        gtk::Application::new(Some("com.github.BenjaminRi.Sherlog"), gio::ApplicationFlags::HANDLES_OPEN)
             .expect("Initialization failed...");
+	
+	application.connect_open(move |_app, files, _| {
+		for file in files {
+			println!("DEBUG: open {:?}", file.get_path().expect("File has no path"));
+		}
+	});
 
     application.connect_activate(|app| {
         build_ui(app);
