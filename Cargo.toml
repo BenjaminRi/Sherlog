@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Benjamin Richner"]
 edition = "2018"
 license = "GPLv3"
-license-file = "LICENSE"
 
 [dependencies]
 gtk = "0.7.0"
