@@ -18,7 +18,7 @@ use gtk::{
 use std::env::args;
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 
 // Extended log source (not part of the API)
 enum LogSourceContentsExt {
@@ -355,6 +355,7 @@ fn build_ui(application: &gtk::Application) {
 
     split_pane.set_size_request(-1, -1);
 	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window_left.set_property("overlay-scrolling", &false).unwrap();
 	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	//scrolled_window_left.set_property("min-content-width", &200);
 	scrolled_window_left.add(&left_tree);
@@ -362,6 +363,10 @@ fn build_ui(application: &gtk::Application) {
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
 	let scrolled_window_right = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window_right.set_property("overlay-scrolling", &false).unwrap();
+	//https://stackoverflow.com/questions/50414957/gtk3-0-scrollbar-on-treeview-scrolledwindow-css-properties-to-control-scrol
+	//scrolled_window_right.get_hscrollbar().unwrap().set_property("has-backward-stepper", &true).unwrap();
+	//scrolled_window_right.get_vscrollbar().unwrap().set_property("has-backward-stepper", &true).unwrap();
 	scrolled_window_right.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
 	//scrolled_window_right.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	
