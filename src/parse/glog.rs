@@ -2,14 +2,17 @@ use super::super::model;
 
 extern crate chrono;
 
+use std::io::BufReader;
+use std::io::BufRead;
 use chrono::prelude::*;
 
 // GLOG parser ----------------------------------------------------------------------
 
-pub fn to_log_entries(mut reader: impl std::io::BufRead) -> Vec::<model::LogEntry> {
+pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
+	let mut bufreader = BufReader::new(reader);
 	let mut log_entries = Vec::<model::LogEntry>::new();
 	let mut buf = Vec::<u8>::new();
-    while reader.read_until(b'\n', &mut buf).expect("read_until failed") != 0 {
+    while bufreader.read_until(b'\n', &mut buf).expect("read_until failed") != 0 {
 		match String::from_utf8_lossy(&buf) {
 			std::borrow::Cow::Borrowed(line_str) => {
 				//println!("{}", line_str);

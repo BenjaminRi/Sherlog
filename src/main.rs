@@ -1,11 +1,11 @@
 extern crate gio;
 extern crate gtk;
+extern crate glib;
 extern crate log;
 extern crate chrono;
 
 use gio::prelude::*;
 use gtk::prelude::*;
-use std::env;
 
 mod model;
 mod parse;
@@ -17,9 +17,6 @@ use gtk::{
 };
 
 use std::env::args;
-
-use std::fs::File;
-use std::io::BufReader;
 
 // Extended log source (not part of the API)
 enum LogSourceContentsExt {
@@ -234,7 +231,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	//println!("Inconsistent: {}", level_inconsistent);
 }
 
-fn build_ui(application: &gtk::Application) {
+fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
     let window = gtk::ApplicationWindow::new(application);
 	//window.set_icon_from_file("../images/sherlog_icon.png");
     window.set_title("Sherlog");
@@ -242,17 +239,27 @@ fn build_ui(application: &gtk::Application) {
     window.set_position(gtk::WindowPosition::Center);
     window.set_default_size(600, 400);
 	
-	// Use clap or getopts for more complicated argument parsing:
-	// https://crates.io/crates/clap
-	// https://rust-lang-nursery.github.io/rust-cookbook/cli/arguments.html
-	// https://crates.io/crates/getopts
+	//let args = &args().collect::<Vec<_>>();
+    /*//FIXME: Use handle-local-options once https://github.com/gtk-rs/gtk/issues/580 is a thing
+    let mut new_instance = false;
+    for arg in args {
+        match arg.as_str() {
+            "-n" | "--new-instance" => new_instance = true,
+            _ => (),
+        }
+    }*/
+    //println!("{:?}", args);
 	
-	let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
+	//Generate fake log entries to test GUI ---------------------------------------------
 	
-	let file = File::open("../logfiles/example.glog").expect("Could not open file");
-    let reader = BufReader::new(file);
-	let log_entries = parse::glog::to_log_entries(reader);
+	let log_entries = vec![
+		model::LogEntry { message: "TestCritical 121343245345".to_string(), severity: model::LogLevel::Critical, ..Default::default() },
+		model::LogEntry { message: "TestError 3405834068".to_string(),      severity: model::LogLevel::Error,    ..Default::default() },
+		model::LogEntry { message: "TestWarning 340958349068".to_string(),  severity: model::LogLevel::Warning,  ..Default::default() },
+		model::LogEntry { message: "TestInfo 3049580349568".to_string(),    severity: model::LogLevel::Info,     ..Default::default() },
+		model::LogEntry { message: "TestDebug 0345986045968".to_string(),   severity: model::LogLevel::Debug,    ..Default::default() },
+		model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() },
+		];
 	
 	//Vec::<model::LogEntry>::new()
 	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
@@ -265,6 +272,18 @@ fn build_ui(application: &gtk::Application) {
 	
 	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
 	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
+	
+	//---------------------------------------------------------------------------------------
+	
+	println!("{:?}", file_paths);
+	let log_source_root = if !file_paths.is_empty() {
+		if file_paths.len() > 1 {
+			println!("WARNING: Multiple files opened, ignoring all but the first one.");
+		}
+		parse::from_file(&file_paths[0]).expect("Could not read file!")
+	} else {
+		log_source_root
+	};
 	
 	
 	let mut log_source_root_ext = extend_log_source(log_source_root);
@@ -383,9 +402,13 @@ fn build_ui(application: &gtk::Application) {
 	//Right side:
 	let right_store_filter = gtk::TreeModelFilter::new(&right_store, None);
 	right_store_filter.set_visible_column(LogEntriesColumns::Visible as i32);
-	let left_store_filter_sort = gtk::TreeModelSort::new(&right_store_filter);
-	let right_tree = gtk::TreeView::new_with_model(&left_store_filter_sort);
+	//let right_store_filter_sort = gtk::TreeModelSort::new(&right_store_filter);
+	let right_tree = gtk::TreeView::new_with_model(&right_store_filter);//right_store_filter_sort
     right_tree.set_headers_visible(true);
+	
+	// CRUCIAL for performance, also stops nasty dynamic 
+	// line loading which moves the scrollbar on its own:
+	right_tree.set_fixed_height_mode(true);
 	
 	fn build_right_store(store: &ListStore, log_source: &LogSourceExt) {
 		match &log_source.children {
@@ -416,6 +439,7 @@ fn build_ui(application: &gtk::Application) {
 			},
 		}
 	}
+	build_right_store(&right_store, &log_source_root_ext);
 
 	{
 		let column = gtk::TreeViewColumn::new();
@@ -483,8 +507,6 @@ fn build_ui(application: &gtk::Application) {
 		right_tree.append_column(&column);
 	}
 	
-	build_right_store(&right_store, &log_source_root_ext);
-	
 	scrolled_window_right.add(&right_tree);
 	split_pane.pack_start(&scrolled_window_right, true, true, 10);
 
@@ -492,21 +514,44 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
+fn gio_files_to_paths(gio_files : &[gio::File]) -> Vec<std::path::PathBuf> {
+	let mut result = Vec::new();
+	for gio_file in gio_files {
+		result.push(gio_file.get_path().expect("Invalid file path"));
+	}
+	result
+}
+
 fn main() {
+	
+	// https://developer.gnome.org/CommandLine/
+	// https://developer.gnome.org/GtkApplication/
+	
     let application =
         gtk::Application::new(Some("com.github.BenjaminRi.Sherlog"), gio::ApplicationFlags::HANDLES_OPEN)
             .expect("Initialization failed...");
 	
-	application.connect_open(move |_app, files, _| {
-		for file in files {
-			println!("DEBUG: open {:?}", file.get_path().expect("File has no path"));
-		}
+	// https://gtk-rs.org/docs/glib/struct.OptionFlags.html
+	// https://gtk-rs.org/docs/glib/enum.OptionArg.html
+	application.add_main_option(
+		"CTest",
+		glib::Char::new('c').unwrap(),
+		glib::OptionFlags::IN_MAIN,
+		glib::OptionArg::String,
+		"This is just a test",
+		Some("This is a test argument"),
+	);
+	
+	// https://gtk-rs.org/docs/gio/prelude/trait.ApplicationExtManual.html
+	application.connect_open(move |app, gio_files, _| {
+		build_ui(app, &gio_files_to_paths(gio_files));
 	});
 
     application.connect_activate(|app| {
-        build_ui(app);
+        build_ui(app, &Vec::new());
     });
-
+	
+	// https://gtk-rs.org/docs/gio/prelude/trait.ApplicationExtManual.html#tymethod.run
     application.run(&args().collect::<Vec<_>>());
 }
 
