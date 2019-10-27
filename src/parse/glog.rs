@@ -3,40 +3,68 @@ use super::super::model;
 extern crate chrono;
 
 use std::io::BufReader;
-use std::io::BufRead;
 use std::io::Read;
 use chrono::prelude::*;
 
 // GLOG parser ----------------------------------------------------------------------
 
 pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
-	let mut log_entries = Vec::<model::LogEntry>::new();
-	
 	let mut parser = GlogParser::new();
 	
 	let mut bufreader = BufReader::new(reader);
 	let mut buffer = [0; 1];
-    while let Ok(bytes_read) = bufreader.read(&mut buffer){
-		if(bytes_read == 0) {
-			break;
+    loop{
+		if let Ok(bytes_read) = bufreader.read(&mut buffer){
+			if bytes_read == 0 {
+				break parser.finalize()
+			}
+			else
+			{
+				parser = parser.read_byte(buffer[0]);
+			}
 		}
-		let chr = buffer[0];
-		//println!("Char: {}", chr as i32);
-		
-		parser.state = match parser.state {
+		else
+		{
+			break parser.finalize()
+		}
+	}
+}
+
+
+struct GlogParser {
+	state : GlogParserState,
+	buf : Vec<u8>,
+	log_entry : model::LogEntry,
+	log_entries : Vec::<model::LogEntry>,
+	invalid_bytes : usize
+}
+
+impl GlogParser {
+	fn new() -> GlogParser {
+		GlogParser {
+			state : GlogParserState::PreSection,
+			buf : Vec::with_capacity(512),
+			log_entry : model::LogEntry { ..Default::default() },
+			log_entries : Vec::<model::LogEntry>::new(),
+			invalid_bytes : 0,
+		}
+	}
+	
+	fn read_byte(mut self, chr : u8) -> GlogParser {
+		self.state = match self.state {
 			GlogParserState::PreSection => {
 				if chr == b'[' {
 					GlogParserState::SectionKind
 				} else if chr == b'\r' || chr == b'\n' {
 					GlogParserState::PreSection
 				} else {
-					println!("INVALID symbol before log line: {}", chr);
+					self.invalid_bytes += 1;
 					GlogParserState::PreSection
 				}
 			},
 			GlogParserState::SectionKind => {
 				if chr == b'|' {
-					let kind_str = std::str::from_utf8(&parser.buf);
+					let kind_str = std::str::from_utf8(&self.buf);
 					
 					let kind = if let Ok(kind_str) = kind_str {
 						match kind_str.as_ref() {
@@ -52,18 +80,18 @@ pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
 						}
 					} else {
 						//TODO: Notify of malformed UTF-8?
-						println!("MALFORMED UTF-8 in kind string: {}", &String::from_utf8_lossy(&parser.buf));
+						println!("MALFORMED UTF-8 in kind string: {}", &String::from_utf8_lossy(&self.buf));
 						GlogSectionKind::Unknown 
 					};
-					parser.buf.clear();
+					self.buf.clear();
 					GlogParserState::SectionValue(kind)
 				} else {
-					parser.buf.push(chr);
+					self.buf.push(chr);
 					GlogParserState::SectionKind
 				}
 			},
 			GlogParserState::SectionValue(kind) => {
-				parser.buf.push(chr);
+				self.buf.push(chr);
 				if chr == b']' {
 					GlogParserState::SectionValuePost1(kind)
 				} else {
@@ -71,29 +99,33 @@ pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
 				}
 			},
 			GlogParserState::SectionValuePost1(kind) => {
-				parser.buf.push(chr);
+				self.buf.push(chr);
 				if chr == b':' {
 					GlogParserState::SectionValuePost3(kind, 3, false)
 				} else if chr == b'\r' {
 					GlogParserState::SectionValuePost2(kind)
 				} else if chr == b'\n' {
 					GlogParserState::SectionValuePost3(kind, 3, true)
+				} else if chr == b']' {
+					GlogParserState::SectionValuePost1(kind)
 				} else {
 					GlogParserState::SectionValue(kind)
 				}
 			},
 			GlogParserState::SectionValuePost2(kind) => {
-				parser.buf.push(chr);
+				self.buf.push(chr);
 				if chr == b'\n' {
 					GlogParserState::SectionValuePost3(kind, 4, true)
+				}else if chr == b']' {
+					GlogParserState::SectionValuePost1(kind)
 				} else {
 					GlogParserState::SectionValue(kind)
 				}
 			},
 			GlogParserState::SectionValuePost3(kind, suffix_cutoff, entry_done) => {
-				parser.buf.push(chr);
+				self.buf.push(chr);
 				if chr == b'[' {
-					let value_str = String::from_utf8_lossy(&parser.buf[0..parser.buf.len()-suffix_cutoff]);
+					let value_str = String::from_utf8_lossy(&self.buf[0..self.buf.len()-suffix_cutoff]);
 					
 					match kind {
 						GlogSectionKind::TimestampMs => {
@@ -101,7 +133,7 @@ pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
 								let ts_sec   : u64 = ts_milli / 1000;
 								let ts_nano  : u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
 								if let Some(ndt) = NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano) {
-									parser.log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+									self.log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
 								} else {
 									//TODO: Notify of invalid datetime?
 									println!("MALFORMED Log datetime: {}", value_str);
@@ -114,44 +146,69 @@ pub fn to_log_entries(reader: impl std::io::Read) -> Vec::<model::LogEntry> {
 						GlogSectionKind::Severity => {
 							if let Ok(glog_sev_u32) = value_str.parse::<u32>() {
 								if let Some(glog_sev) = GlogSeverity::from_u32(glog_sev_u32) {
-									parser.log_entry.severity = normalize_glog_sev(glog_sev);
+									self.log_entry.severity = normalize_glog_sev(glog_sev);
+								} else {
+									//TODO: Notify of invalid severity?
+									println!("INVALID Log severity: {}", value_str);
 								}
+							}else {
+								//TODO: Notify of malformed severity?
+								println!("MALFORMED Log severity: {}", value_str);
 							}
 						},
 						GlogSectionKind::Message => {
-							parser.log_entry.message = value_str.to_string();
+							self.log_entry.message = value_str.to_string();
 						},
 						_ => (),
 					}
 					if entry_done {
-						log_entries.push(parser.log_entry);
-						parser.log_entry = model::LogEntry { ..Default::default() };
+						self.log_entries.push(self.log_entry);
+						self.log_entry = model::LogEntry { ..Default::default() };
 					}
-					parser.buf.clear();
+					self.buf.clear();
 					GlogParserState::SectionKind
+				} else if chr == b']' {
+					GlogParserState::SectionValuePost1(kind)
 				} else {
 					GlogParserState::SectionValue(kind)
 				}
 			},
 		};
+		self
 	}
 	
-	log_entries
-}
-
-
-struct GlogParser {
-	state : GlogParserState,
-	buf : Vec<u8>,
-	log_entry : model::LogEntry,
-}
-
-impl GlogParser {
-	fn new() -> GlogParser {
-		GlogParser {
-			state : GlogParserState::PreSection,
-			buf : Vec::with_capacity(512),
-			log_entry : model::LogEntry { ..Default::default() },
+	fn finalize(self) -> Vec::<model::LogEntry> {
+		if self.invalid_bytes > 0 {
+			//TODO: Invalid bytes?
+			println!("INVALID bytes encountered, count: {}", self.invalid_bytes);
+		}
+		match self.state {
+			GlogParserState::PreSection => {
+				//Log file empty
+				self.log_entries
+			},
+			GlogParserState::SectionKind => {
+				//TODO: Notify of cut off kind?
+				println!("CUT OFF last log message (kind)");
+				self.log_entries
+			},
+			GlogParserState::SectionValue(_) => {
+				//TODO: Notify of cut off kind?
+				println!("CUT OFF last log message (value)");
+				self.log_entries
+			},
+			GlogParserState::SectionValuePost1(_) => {
+				//Finish parsing section
+				self.read_byte(b'\n').read_byte(b'[').log_entries
+			},
+			GlogParserState::SectionValuePost2(_) => {
+				//Finish parsing section
+				self.read_byte(b'\n').read_byte(b'[').log_entries
+			},
+			GlogParserState::SectionValuePost3(_, _, _) => {
+				//Finish parsing section
+				self.read_byte(b'[').log_entries
+			},
 		}
 	}
 }
