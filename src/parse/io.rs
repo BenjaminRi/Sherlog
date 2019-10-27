@@ -11,8 +11,8 @@ pub fn from_file(path : &std::path::PathBuf) -> Result<model::LogSource, std::io
 			// ../logfiles/example.glog
 			"glog" => {
 				let file = File::open(&path)?;
-				let log_entries = glog::to_log_entries(file);
-				Ok(model::LogSource {name: "example2_1".to_string(), children: {model::LogSourceContents::Entries(log_entries) } })
+				let root = model::LogSource {name: "example2_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+				Ok(glog::to_log_entries(file, root))
 			},
 			// ../logfiles/logfile1.sfile
 			"sfile" => {

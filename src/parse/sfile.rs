@@ -20,10 +20,8 @@ pub fn from_file(path : &std::path::PathBuf) -> Result<model::LogSource, std::io
 			match extension.to_string_lossy().as_ref() {
 				// ../logfiles/example.glog
 				"glog" => {
-					//let glog_entries = Vec::new();
-					let glog_entries = glog::to_log_entries(file);
-					let child_source = model::LogSource {name: stem.to_string(), children: {model::LogSourceContents::Entries(glog_entries) } };
-					child_sources.push(child_source);
+					let root = model::LogSource {name: stem.to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+					child_sources.push(glog::to_log_entries(file, root));
 				},
 				_ => (),
 			}
