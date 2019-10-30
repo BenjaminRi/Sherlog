@@ -18,7 +18,7 @@ pub fn to_log_entries(reader: impl std::io::Read, root : model::LogSource) -> mo
     loop {
 		if let Ok(bytes_read) = bufreader.read(&mut buffer){
 			if bytes_read == 0 {
-				println!("Len srcs {}, entrs {}", parser.log_sources.len(), parser.log_entries.len());
+				//println!("Len srcs {}, entrs {}", parser.log_sources.len(), parser.log_entries.len());
 				break parser.finalize()
 			}
 			else
@@ -173,6 +173,9 @@ impl GlogParser {
 							}
 						},
 						GlogSectionKind::Message => {
+							if let std::borrow::Cow::Owned(owned_str) = &value_str {
+								println!("MALFORMED UTF-8 in Message: {}", owned_str);
+							}
 							self.log_entry.message = value_str.to_string();
 						},
 						GlogSectionKind::Unknown => ()
@@ -255,7 +258,7 @@ impl GlogParser {
 			for (_, mut sub_source) in self.log_sources {
 				sub_source.name = match &sub_source.children {
 					model::LogSourceContents::Entries(v) => {
-						if(!v.is_empty()) {
+						if !v.is_empty() {
 							v[0].message.split(":").nth(0).unwrap().to_string() //TODO: Handle error
 						} else {
 							"???".to_string() //TODO: Handle error
