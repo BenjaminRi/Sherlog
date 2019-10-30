@@ -6,6 +6,7 @@ use std::io::BufReader;
 use std::io::Read;
 use chrono::prelude::*;
 use std::collections::HashMap;
+use std::mem;
 
 // GLOG parser ----------------------------------------------------------------------
 
@@ -22,7 +23,7 @@ pub fn to_log_entries(reader: impl std::io::Read, root : model::LogSource) -> mo
 			}
 			else
 			{
-				parser = parser.read_byte(buffer[0]);
+				parser.read_byte(buffer[0]);
 			}
 		}
 		else
@@ -57,7 +58,7 @@ impl GlogParser {
 		}
 	}
 	
-	fn read_byte(mut self, chr : u8) -> GlogParser {
+	fn read_byte(&mut self, chr : u8) {
 		self.state = match self.state {
 			GlogParserState::PreSection => {
 				if chr == b'[' {
@@ -177,6 +178,7 @@ impl GlogParser {
 						GlogSectionKind::Unknown => ()
 					}
 					if entry_done {
+						let log_entry = mem::replace(&mut self.log_entry, model::LogEntry { ..Default::default() });
 						if let Some(sub_source) = self.sub_source {
 							//Log entry specified a log sub-source
 							let source_option = self.log_sources.get_mut(&sub_source);
@@ -185,7 +187,7 @@ impl GlogParser {
 								let children = &mut source.children;
 								match children {
 									model::LogSourceContents::Entries(v) => {
-										v.push(self.log_entry);
+										v.push(log_entry);
 									},
 									_ => (),
 								}
@@ -193,14 +195,13 @@ impl GlogParser {
 								//Log sub-source does not yet exist
 								self.log_sources.insert(
 									sub_source,
-									model::LogSource {name: sub_source.to_string(), children: {model::LogSourceContents::Entries(vec![self.log_entry]) } }
+									model::LogSource {name: sub_source.to_string(), children: {model::LogSourceContents::Entries(vec![log_entry]) } }
 								);
 							}
 						} else {
 							//Log entry did not specify a log sub-source
-							self.log_entries.push(self.log_entry);
+							self.log_entries.push(log_entry);
 						}
-						self.log_entry = model::LogEntry { ..Default::default() };
 						self.sub_source = None;
 					}
 					self.buf.clear();
@@ -212,48 +213,46 @@ impl GlogParser {
 				}
 			},
 		};
-		self
 	}
 	
-	fn finalize(self) -> model::LogSource {
+	fn finalize(mut self) -> model::LogSource {
 		if self.invalid_bytes > 0 {
 			//TODO: Invalid bytes?
 			println!("INVALID bytes encountered, count: {}", self.invalid_bytes);
 		}
-		let mut self_final = match self.state {
+		match self.state {
 			GlogParserState::PreSection => {
 				//Log file empty
-				self
 			},
 			GlogParserState::SectionKind => {
 				//TODO: Notify of cut off kind?
 				println!("CUT OFF last log message (kind)");
-				self
 			},
 			GlogParserState::SectionValue(_) => {
 				//TODO: Notify of cut off kind?
 				println!("CUT OFF last log message (value)");
-				self
 			},
 			GlogParserState::SectionValuePost1(_) => {
 				//Finish parsing section
-				self.read_byte(b'\n').read_byte(b'[')
+				self.read_byte(b'\n');
+				self.read_byte(b'[');
 			},
 			GlogParserState::SectionValuePost2(_) => {
 				//Finish parsing section
-				self.read_byte(b'\n').read_byte(b'[')
+				self.read_byte(b'\n');
+				self.read_byte(b'[');
 			},
 			GlogParserState::SectionValuePost3(_, _, _) => {
 				//Finish parsing section
-				self.read_byte(b'[')
+				self.read_byte(b'[');
 			},
 		};
 		
-		if self_final.log_sources.is_empty() {
-			self_final.root.children = model::LogSourceContents::Entries(self_final.log_entries);
+		if self.log_sources.is_empty() {
+			self.root.children = model::LogSourceContents::Entries(self.log_entries);
 		} else {
-			let mut v = Vec::<model::LogSource>::with_capacity(self_final.log_sources.len());
-			for (_, mut sub_source) in self_final.log_sources {
+			let mut v = Vec::<model::LogSource>::with_capacity(self.log_sources.len());
+			for (_, mut sub_source) in self.log_sources {
 				sub_source.name = match &sub_source.children {
 					model::LogSourceContents::Entries(v) => {
 						if(!v.is_empty()) {
@@ -266,13 +265,14 @@ impl GlogParser {
 				};
 				v.push(sub_source);
 			}
-			self_final.root.children = model::LogSourceContents::Sources(v);
+			self.root.children = model::LogSourceContents::Sources(v);
 		}
 		
-		self_final.root
+		self.root
 	}
 }
 
+#[derive(Copy, Clone)]
 enum GlogParserState {
 	PreSection,                                      //expect '[', ignore '\r' or '\n'
 	SectionKind,                                     //expect kind until '|' (kind may not contain '|')
@@ -317,7 +317,7 @@ impl GlogSeverity {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum GlogSectionKind {
 	TimestampMs,
 	Severity,
