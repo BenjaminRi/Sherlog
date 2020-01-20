@@ -1,6 +1,5 @@
 extern crate zip;
 
-use std::io::Read;
 use super::super::model;
 use super::glog;
 use std::mem;

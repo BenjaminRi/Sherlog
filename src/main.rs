@@ -6,9 +6,12 @@ extern crate chrono;
 
 use gio::prelude::*;
 use gtk::prelude::*;
+//use std::cmp::Ordering;
 
 mod model;
 mod parse;
+
+mod tree_model;
 
 #[allow(unused_imports)]
 use gtk::{
@@ -124,11 +127,11 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     let iter = tree_store.get_iter(&path).unwrap();
     let mut active = tree_store
         .get_value(&iter, LogSourcesColumns::Active as i32)
-        .get::<bool>()
+        .get_some::<bool>()
         .unwrap();
 	let mut inconsistent = tree_store
         .get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-        .get::<bool>()
+        .get_some::<bool>()
         .unwrap();
 	
 	
@@ -149,12 +152,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 			while let Some(iter) = tree_store.get_iter(&path) {
 				let n_active = tree_store
 					.get_value(&iter, LogSourcesColumns::Active as i32)
-					.get::<bool>()
+					.get_some::<bool>()
 					.unwrap();
 				
 				let n_inconsistent = tree_store
 					.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-					.get::<bool>()
+					.get_some::<bool>()
 					.unwrap();
 				
 				if (prev_active != None && Some(n_active) != prev_active) || n_inconsistent {
@@ -190,12 +193,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		{
 			let n_active = tree_store
 					.get_value(&iter, LogSourcesColumns::Active as i32)
-					.get::<bool>()
+					.get_some::<bool>()
 					.unwrap();
 			if n_active != active {
 				let n_id = tree_store
 					.get_value(&iter, LogSourcesColumns::Id as i32)
-					.get::<u32>()
+					.get_some::<u32>()
 					.unwrap();
 				sources.push(n_id);
 				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
@@ -208,7 +211,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	let mut sources = Vec::<u32>::new();
 	let id = tree_store
 		.get_value(&iter, LogSourcesColumns::Id as i32)
-		.get::<u32>()
+		.get_some::<u32>()
 		.unwrap();
 	sources.push(id);
 	activate_children(tree_store, path, active, &mut sources);
@@ -219,7 +222,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		while let Some(iter) = list_store.get_iter(&path) {
 			let id = list_store
 				.get_value(&iter, LogEntriesColumns::SourceId as i32)
-				.get::<u32>()
+				.get_some::<u32>()
 				.unwrap();
 			if sources.contains(&id) {
 				list_store.set_value(&iter, LogEntriesColumns::Visible as u32, &active.to_value());
@@ -291,11 +294,26 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
-	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), gtk::Type::Bool, gtk::Type::U32]);
-    let left_store = TreeStore::new(&[gtk::Type::Bool, gtk::Type::Bool, String::static_type(), gtk::Type::U32, gtk::Type::U64]);
+	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), glib::Type::Bool, glib::Type::U32]);
+    let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
 	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
     left_tree.set_headers_visible(true);
+	
+	
+	//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
+	let store_clone = left_store_sort.clone();
+	left_store_sort.set_sort_func(gtk::SortColumn::Index(LogSourcesColumns::Text as u32), move |_w, l_it, r_it| {
+		let l_id = store_clone
+			.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
+			.get_some::<u64>()
+			.unwrap();
+		let r_id = store_clone
+			.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
+			.get_some::<u64>()
+			.unwrap();
+		l_id.cmp(&r_id)
+	} );
 	
 	// Column for fixed toggles
     {
@@ -359,7 +377,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			LogSourcesColumns::ChildCount as u32,
 			],
 			&[
-			&false,
+			&true,
 			&false,
 			&log_source.name,
 			&log_source.id,
@@ -445,11 +463,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		let column = gtk::TreeViewColumn::new();
 		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
 		column.set_title("Timestamp");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogEntriesColumns::Timestamp as i32);
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+		//column.set_sort_column_id(LogEntriesColumns::Timestamp as i32);
 		column.set_resizable(true);
-		column.set_reorderable(true);
+		//column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
 		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
@@ -461,11 +479,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		let column = gtk::TreeViewColumn::new();
 		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
 		column.set_title("Severity");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogEntriesColumns::Severity as i32);
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+		//column.set_sort_column_id(LogEntriesColumns::Severity as i32);
 		column.set_resizable(true);
-		column.set_reorderable(true);
+		//column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
 		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
@@ -476,6 +494,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			let sev = model
 				.get_value(&iter, LogEntriesColumns::Severity as i32)
 				.get::<String>()
+				.unwrap()
 				.unwrap();
 			//println!("Severity: {}", sev);
 			let color = match sev.as_ref() {
@@ -495,11 +514,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		let column = gtk::TreeViewColumn::new();
 		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
 		column.set_title("Message");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogEntriesColumns::Message as i32);
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+		//column.set_sort_column_id(LogEntriesColumns::Message as i32);
 		column.set_resizable(true);
-		column.set_reorderable(true);
+		//column.set_reorderable(true);
 		let renderer_text = CellRendererText::new();
 		//renderer_text.set_alignment(0.0, 0.0);
 		column.pack_start(&renderer_text, false);
@@ -509,6 +528,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	scrolled_window_right.add(&right_tree);
 	split_pane.pack_start(&scrolled_window_right, true, true, 10);
+	
+	//https://gtk-rs.org/docs/gtk/prelude/trait.TreeSortableExtManual.html#tymethod.set_sort_func
+	println!("SORT FUNC: {}", right_store.has_default_sort_func());
+	println!("SORT COLUMN: {:?}", right_store.get_sort_column_id());
+	//TODO: If we add the log entries correctly into the tree, we don't even have to do this sort hack any more.
+	right_store.set_sort_column_id(gtk::SortColumn::Index(LogEntriesColumns::Timestamp as u32), gtk::SortType::Ascending);
+	right_store.set_unsorted();
+	println!("SORT COLUMN: {:?}", right_store.get_sort_column_id());
 
     window.add(&split_pane);
     window.show_all();
