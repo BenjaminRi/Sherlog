@@ -1,12 +1,21 @@
 extern crate gio;
 extern crate gtk;
+extern crate gdk;
 extern crate glib;
 extern crate log;
 extern crate chrono;
+extern crate cairo;
+
+use cairo::{Context, Format, ImageSurface, Rectangle};
 
 use gio::prelude::*;
 use gtk::prelude::*;
+use gtk::DrawingArea;
+use gdk::EventMask;
 //use std::cmp::Ordering;
+
+use std::rc::Rc;
+use std::cell::RefCell;
 
 mod model;
 mod parse;
@@ -526,8 +535,101 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		right_tree.append_column(&column);
 	}
 	
-	scrolled_window_right.add(&right_tree);
-	split_pane.pack_start(&scrolled_window_right, true, true, 10);
+	// Assemble log store ----------------------------------------------------------
+	
+	let mut store = Vec::<model::LogEntry>::new();
+	
+	fn build_log_store(store: &mut Vec<model::LogEntry>, log_source: &mut LogSourceExt) {
+		match &mut log_source.children {
+			LogSourceContentsExt::Sources(v) => {
+				for source in v {
+					build_log_store(store, source);
+				}
+			},
+			LogSourceContentsExt::Entries(v) => {
+				store.append(v);
+				()
+			},
+		}
+	}
+	
+	build_log_store(&mut store, &mut log_source_root_ext);
+	
+	struct LogStoreLinear {
+		store : Vec::<model::LogEntry>,
+		cursor_pos : u32,
+	}
+	
+	let store = LogStoreLinear { store : store, cursor_pos : 0 };
+	
+	//-------------------------------------------------------------------------------
+	
+	
+	fn draw(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
+		//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
+		//println!("{}", store.store.len());
+		
+		// crucial for transparency
+		/*ctx.set_source_rgba(1.0, 0.0, 0.0, 1.0);
+		ctx.set_operator(cairo::Operator::Screen);
+		ctx.paint();*/
+		
+		ctx.set_source_rgb(1.0, 1.0, 1.0);
+		ctx.paint();
+		
+		ctx.set_source_rgb(1.0, 0.0, 0.0);
+        ctx.rectangle(10.0, 10.0, 2.0, 2.0);
+        ctx.fill();
+		
+		ctx.set_source_rgb(0.0, 0.0, 0.0);
+		ctx.new_sub_path();
+        ctx.move_to(10.0, 10.0);
+        ctx.line_to(10.0, 20.0);
+        ctx.line_to(20.0, 20.0);
+        ctx.line_to(20.0, 10.0);
+        ctx.close_path();
+		ctx.stroke();
+		
+		ctx.move_to(30.0, 10.0);
+		ctx.set_font_size(14.0);
+		/*let font_face = ctx.get_font_face();
+		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
+		ctx.set_font_face(&new_font_face);*/
+		ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+		ctx.show_text("Hello canvas!llllllMMMM");
+		
+		println!("Redraw");
+		
+		gtk::Inhibit(false)
+	}
+	
+	fn handle_event(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
+		//_drawing_area.queue_draw();
+		//println!("Event");
+		gtk::Inhibit(false)
+	}
+	
+	//scrolled_window_right.add(&right_tree);
+	/*let surface = ImageSurface::create(Format::ARgb32, 100, 100)
+        .expect("Could not create surface.");
+    let ctx = Context::new(&surface);*/
+	let drawing_area = DrawingArea::new();
+	let event_mask = EventMask::POINTER_MOTION_MASK
+		| EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK
+		| EventMask::KEY_PRESS_MASK | EventMask::KEY_RELEASE_MASK | EventMask::SCROLL_MASK;
+
+	drawing_area.set_can_focus(true);
+	drawing_area.add_events(event_mask);
+	let f = Rc::new(RefCell::new(store));
+	let f_clone_1 = f.clone();
+	drawing_area.connect_event(move |x, y| handle_event(&mut f_clone_1.clone().borrow_mut(), x, y));
+
+	// establish a reasonable minimum view size
+	drawing_area.set_size_request(200, 200);
+	let f_clone_2 = f.clone();
+	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.clone().borrow_mut(), x, y));
+	//scrolled_window_right.add(&drawing_area);
+	split_pane.pack_start(&drawing_area, true, true, 10);
 	
 	//https://gtk-rs.org/docs/gtk/prelude/trait.TreeSortableExtManual.html#tymethod.set_sort_func
 	println!("SORT FUNC: {}", right_store.has_default_sort_func());
