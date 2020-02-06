@@ -417,124 +417,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	split_pane.pack_start(&scrolled_window_left, false, false, 0);
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
-	let scrolled_window_right = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-	scrolled_window_right.set_property("overlay-scrolling", &false).unwrap();
-	//https://stackoverflow.com/questions/50414957/gtk3-0-scrollbar-on-treeview-scrolledwindow-css-properties-to-control-scrol
-	//scrolled_window_right.get_hscrollbar().unwrap().set_property("has-backward-stepper", &true).unwrap();
-	//scrolled_window_right.get_vscrollbar().unwrap().set_property("has-backward-stepper", &true).unwrap();
-	scrolled_window_right.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
-	//scrolled_window_right.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-	
-	
-	//Right side:
-	let right_store_filter = gtk::TreeModelFilter::new(&right_store, None);
-	right_store_filter.set_visible_column(LogEntriesColumns::Visible as i32);
-	//let right_store_filter_sort = gtk::TreeModelSort::new(&right_store_filter);
-	let right_tree = gtk::TreeView::new_with_model(&right_store_filter);//right_store_filter_sort
-    right_tree.set_headers_visible(true);
-	
-	// CRUCIAL for performance, also stops nasty dynamic 
-	// line loading which moves the scrollbar on its own:
-	right_tree.set_fixed_height_mode(true);
-	
-	fn build_right_store(store: &ListStore, log_source: &LogSourceExt) {
-		match &log_source.children {
-			LogSourceContentsExt::Sources(v) => {
-				for source in v {
-					build_right_store(store, source);
-				}
-			},
-			LogSourceContentsExt::Entries(v) => {
-				for entry in v {
-					let date_str = entry.timestamp.format("%F %T%.3f").to_string();
-					//let date_str = entry.timestamp.to_rfc3339_opts(SecondsFormat::Millis, false);
-					store.insert_with_values(None, 
-					&[LogEntriesColumns::Timestamp as u32,
-					LogEntriesColumns::Severity as u32,
-					LogEntriesColumns::Message as u32,
-					LogEntriesColumns::Visible as u32,
-					LogEntriesColumns::SourceId as u32
-					],
-					&[&date_str,
-					&entry.severity.to_string(),
-					&entry.message,
-					&(true), //entry.severity == model::LogLevel::Error
-					&log_source.id
-					]);
-				}
-				()
-			},
-		}
-	}
-	build_right_store(&right_store, &log_source_root_ext);
-
-	{
-		let column = gtk::TreeViewColumn::new();
-		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Timestamp");
-		//column.set_sort_indicator(true);
-		//column.set_clickable(true);
-		//column.set_sort_column_id(LogEntriesColumns::Timestamp as i32);
-		column.set_resizable(true);
-		//column.set_reorderable(true);
-		let renderer_text = CellRendererText::new();
-		//renderer_text.set_alignment(0.0, 0.0);
-		column.pack_start(&renderer_text, false);
-		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Timestamp as i32);
-		right_tree.append_column(&column);
-	}
-	
-	{
-		let column = gtk::TreeViewColumn::new();
-		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Severity");
-		//column.set_sort_indicator(true);
-		//column.set_clickable(true);
-		//column.set_sort_column_id(LogEntriesColumns::Severity as i32);
-		column.set_resizable(true);
-		//column.set_reorderable(true);
-		let renderer_text = CellRendererText::new();
-		//renderer_text.set_alignment(0.0, 0.0);
-		column.pack_start(&renderer_text, false);
-		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Severity as i32);
-		
-		gtk::TreeViewColumnExt::set_cell_data_func(&column, &renderer_text, Some(Box::new(move |_column, cell, model, iter| {
-			//let path = model.get_path(iter);
-			let sev = model
-				.get_value(&iter, LogEntriesColumns::Severity as i32)
-				.get::<String>()
-				.unwrap()
-				.unwrap();
-			//println!("Severity: {}", sev);
-			let color = match sev.as_ref() {
-				"Critical" => "#FF0000",
-				"Error"    => "#FF0000",
-				"Warning"  => "#FFF200",
-				_          => "#FFFFFF"
-			};
-			cell.set_property("cell-background", &color).unwrap();
-		})));
-		//gtk::CellLayoutExt::set_cell_data_func(&column, &renderer_text, None);
-		
-		right_tree.append_column(&column);
-	}
-	
-	{
-		let column = gtk::TreeViewColumn::new();
-		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Message");
-		//column.set_sort_indicator(true);
-		//column.set_clickable(true);
-		//column.set_sort_column_id(LogEntriesColumns::Message as i32);
-		column.set_resizable(true);
-		//column.set_reorderable(true);
-		let renderer_text = CellRendererText::new();
-		//renderer_text.set_alignment(0.0, 0.0);
-		column.pack_start(&renderer_text, false);
-		column.add_attribute(&renderer_text, "text", LogEntriesColumns::Message as i32);
-		right_tree.append_column(&column);
-	}
-	
 	// Assemble log store ----------------------------------------------------------
 	
 	let mut store = Vec::<model::LogEntry>::new();
@@ -554,10 +436,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	}
 	
 	build_log_store(&mut store, &mut log_source_root_ext);
+	store.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 	
 	struct LogStoreLinear {
 		store : Vec::<model::LogEntry>,
-		cursor_pos : u32,
+		cursor_pos : usize,
 	}
 	
 	let store = LogStoreLinear { store : store, cursor_pos : 0 };
@@ -565,19 +448,16 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	//-------------------------------------------------------------------------------
 	
 	
-	fn draw(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
+	fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
 		//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
 		//println!("{}", store.store.len());
 		
-		// crucial for transparency
-		/*ctx.set_source_rgba(1.0, 0.0, 0.0, 1.0);
-		ctx.set_operator(cairo::Operator::Screen);
-		ctx.paint();*/
+		//println!("w: {} h: {}", drawing_area.get_allocated_width(), drawing_area.get_allocated_height());
 		
 		ctx.set_source_rgb(1.0, 1.0, 1.0);
 		ctx.paint();
 		
-		ctx.set_source_rgb(1.0, 0.0, 0.0);
+		/*ctx.set_source_rgb(1.0, 0.0, 0.0);
         ctx.rectangle(10.0, 10.0, 2.0, 2.0);
         ctx.fill();
 		
@@ -588,31 +468,104 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
         ctx.line_to(20.0, 20.0);
         ctx.line_to(20.0, 10.0);
         ctx.close_path();
-		ctx.stroke();
+		ctx.stroke();*/
 		
-		ctx.move_to(30.0, 10.0);
-		ctx.set_font_size(14.0);
-		/*let font_face = ctx.get_font_face();
-		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
-		ctx.set_font_face(&new_font_face);*/
-		ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-		ctx.show_text("Hello canvas!llllllMMMM");
+		let h = drawing_area.get_allocated_height();
+		let w = drawing_area.get_allocated_width();
 		
-		println!("Redraw");
+		ctx.set_source_rgb(0.0, 0.0, 0.0);
+		
+		let mut i = 0;
+		for entry in store.store.iter().skip(store.cursor_pos).take((h/25) as usize) {
+			i += 1;
+			ctx.move_to(30.0, 20.0+20.0* i as f64);
+			ctx.set_font_size(14.0);
+			/*let font_face = ctx.get_font_face();
+			let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
+			ctx.set_font_face(&new_font_face);*/
+			ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+			ctx.show_text(&entry.message);
+		}
+		
+		{
+			let bar_margin = 10.0;
+			let bar_width = 20.0;
+			let bar_height = h as f64 - bar_margin * 2.0;
+			
+			let scroll_perc = store.cursor_pos as f64 / (store.store.len() - 1) as f64; //Scroll percentage in range [0,1]
+			
+			let thumb_margin = 3.0;
+			let thumb_height = 20.0;
+			let thumb_rel_offset = f64::round((bar_height - thumb_height - thumb_margin * 2.0) * scroll_perc) + thumb_margin;
+			
+			ctx.set_source_rgb(0.7, 0.7, 0.7);
+			ctx.rectangle(w as f64 - bar_width - bar_margin, bar_margin, bar_width, bar_height);
+			ctx.fill();
+			
+			ctx.set_source_rgb(0.3, 0.3, 0.3);
+			ctx.rectangle(w as f64 - bar_width - bar_margin + thumb_margin, bar_margin + thumb_rel_offset, bar_width - 2.0 * thumb_margin, thumb_height);
+			ctx.fill();
+			
+		}
+		
 		
 		gtk::Inhibit(false)
 	}
 	
-	fn handle_event(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
+	fn handle_evt(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
 		//_drawing_area.queue_draw();
-		//println!("Event");
+		if evt.get_event_type() != gdk::EventType::MotionNotify {
+			println!("Event: {:?}", evt.get_event_type());
+		}
 		gtk::Inhibit(false)
 	}
 	
-	//scrolled_window_right.add(&right_tree);
-	/*let surface = ImageSurface::create(Format::ARgb32, 100, 100)
-        .expect("Could not create surface.");
-    let ctx = Context::new(&surface);*/
+	fn handle_evt_scroll(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventScroll) -> gtk::Inhibit {
+		let mut dirty = false;
+		match evt.get_direction() {
+			gdk::ScrollDirection::Up => {
+					if store.cursor_pos > 0 {
+						store.cursor_pos = store.cursor_pos - 1;
+						dirty = true;
+					}
+				},
+			gdk::ScrollDirection::Down => {
+					if store.cursor_pos < store.store.len() - 1 {
+						store.cursor_pos = store.cursor_pos + 1;
+						dirty = true;
+					}
+				},
+			_ => ()
+		}
+		
+		if dirty {
+			_drawing_area.queue_draw();
+		}
+		
+		//println!("Event-scroll!");
+		gtk::Inhibit(false)
+	}
+	
+	fn handle_evt_press(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventButton) -> gtk::Inhibit {
+		let h = _drawing_area.get_allocated_height();
+		let mut scroll_perc = evt.get_position().1/h as f64;
+		if scroll_perc < 0.0 {
+			scroll_perc = 0.0;
+		} else if scroll_perc > 1.0 {
+			scroll_perc = 1.0;
+		}
+		store.cursor_pos = f64::round(scroll_perc * (store.store.len() - 1) as f64) as usize;
+		_drawing_area.queue_draw();
+		//println!("PRESS pos:  {:?}", evt.get_position());
+		//println!("PRESS root: {:?}", evt.get_root());
+		gtk::Inhibit(false)
+	}
+	
+	fn handle_evt_release(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventButton) -> gtk::Inhibit {
+		println!("RELEASE");
+		gtk::Inhibit(false)
+	}
+	
 	let drawing_area = DrawingArea::new();
 	let event_mask = EventMask::POINTER_MOTION_MASK
 		| EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK
@@ -622,22 +575,23 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	drawing_area.add_events(event_mask);
 	let f = Rc::new(RefCell::new(store));
 	let f_clone_1 = f.clone();
-	drawing_area.connect_event(move |x, y| handle_event(&mut f_clone_1.clone().borrow_mut(), x, y));
+	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.clone().borrow_mut(), x, y));
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
 	let f_clone_2 = f.clone();
 	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.clone().borrow_mut(), x, y));
-	//scrolled_window_right.add(&drawing_area);
-	split_pane.pack_start(&drawing_area, true, true, 10);
 	
-	//https://gtk-rs.org/docs/gtk/prelude/trait.TreeSortableExtManual.html#tymethod.set_sort_func
-	println!("SORT FUNC: {}", right_store.has_default_sort_func());
-	println!("SORT COLUMN: {:?}", right_store.get_sort_column_id());
-	//TODO: If we add the log entries correctly into the tree, we don't even have to do this sort hack any more.
-	right_store.set_sort_column_id(gtk::SortColumn::Index(LogEntriesColumns::Timestamp as u32), gtk::SortType::Ascending);
-	right_store.set_unsorted();
-	println!("SORT COLUMN: {:?}", right_store.get_sort_column_id());
+	let f_clone_3 = f.clone();
+	drawing_area.connect_scroll_event(move |x, y| handle_evt_scroll(&mut f_clone_3.clone().borrow_mut(), x, y));
+	
+	let f_clone_4 = f.clone();
+	drawing_area.connect_button_press_event(move |x, y| handle_evt_press(&mut f_clone_4.clone().borrow_mut(), x, y));
+	
+	let f_clone_5 = f.clone();
+	drawing_area.connect_button_release_event(move |x, y| handle_evt_release(&mut f_clone_5.clone().borrow_mut(), x, y));
+	
+	split_pane.pack_start(&drawing_area, true, true, 10);
 
     window.add(&split_pane);
     window.show_all();
