@@ -6,13 +6,10 @@ extern crate log;
 extern crate chrono;
 extern crate cairo;
 
-use cairo::{Context, Format, ImageSurface, Rectangle};
-
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::DrawingArea;
 use gdk::EventMask;
-//use std::cmp::Ordering;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -103,31 +100,20 @@ enum LogSourcesColumns {
 	ChildCount = 4,
 }
 
-enum LogEntriesColumns {
-    Timestamp = 0,
-	Severity = 1,
-	Message = 2,
-	Visible = 3,
-	SourceId = 4,
-}
-
 fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 	tree_store: &gtk::TreeStore,
-	list_store: &gtk::ListStore,
     model_sort: &gtk::TreeModelSort,
     _w: &W,
     path: gtk::TreePath,
 ) {
 	fixed_toggled(
 		tree_store,
-		list_store,
 		_w,
 		model_sort.convert_path_to_child_path(&path).unwrap());
 }
 
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store: &gtk::TreeStore,
-	list_store: &gtk::ListStore,
     _w: &W,
     path: gtk::TreePath,
 ) {
@@ -226,20 +212,6 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	activate_children(tree_store, path, active, &mut sources);
 	println!("Click: {:?} change to {}", sources, active);
 	
-	{
-		let mut path = gtk::TreePath::new_from_indicesv(&[0]);
-		while let Some(iter) = list_store.get_iter(&path) {
-			let id = list_store
-				.get_value(&iter, LogEntriesColumns::SourceId as i32)
-				.get_some::<u32>()
-				.unwrap();
-			if sources.contains(&id) {
-				list_store.set_value(&iter, LogEntriesColumns::Visible as u32, &active.to_value());
-			}
-			path.next();
-		}
-	}
-	
 	//println!("Inconsistent: {}", level_inconsistent);
 }
 
@@ -303,7 +275,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
-	let right_store = ListStore::new(&[String::static_type(), String::static_type(), String::static_type(), glib::Type::Bool, glib::Type::U32]);
     let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
 	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
@@ -341,9 +312,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
-			let right_store_clone = right_store.clone(); //GTK objects are refcounted, just clones ref
 			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &right_store_clone, &model_sort_clone, w, path));
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
 			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
@@ -526,7 +496,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 		store.visible_lines = (h/25) as usize;
 		
-		if(store.cursor_pos > store.store.len() - store.visible_lines) {
+		if store.cursor_pos > store.store.len() - store.visible_lines {
 			store.cursor_pos = store.store.len() - store.visible_lines; 
 		}
 		
