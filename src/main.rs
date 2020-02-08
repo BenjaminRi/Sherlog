@@ -438,12 +438,61 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	build_log_store(&mut store, &mut log_source_root_ext);
 	store.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 	
-	struct LogStoreLinear {
-		store : Vec::<model::LogEntry>,
-		cursor_pos : usize,
+	struct ScrollBarVert {
+		x : f64,
+		y : f64,
+		
+		bar_padding : f64,
+		bar_width : f64,
+		bar_height : f64,
+		
+		thumb_x : f64,
+		thumb_y : f64,
+		thumb_margin : f64,
+		thumb_width : f64,
+		thumb_height : f64,
+		thumb_rel_offset : f64,
+		
+		scroll_perc : f64,
 	}
 	
-	let store = LogStoreLinear { store : store, cursor_pos : 0 };
+	struct LogStoreLinear {
+		store : Vec::<model::LogEntry>,
+		visible_lines : usize,
+		cursor_pos : usize,
+		mouse_down : bool,
+		thumb_drag : bool,
+		thumb_drag_x : f64,
+		thumb_drag_y : f64,
+		scroll_bar : ScrollBarVert,
+	}
+	
+	let store = LogStoreLinear {
+		store : store,
+		cursor_pos : 0,
+		visible_lines : 0,
+		mouse_down : false,
+		thumb_drag : false,
+		thumb_drag_x : 0.0,
+		thumb_drag_y : 0.0,
+		scroll_bar : ScrollBarVert {
+			x : 0.0,
+			y : 0.0,
+			
+			bar_padding : 10.0,
+			bar_width : 20.0,
+			bar_height : 0.0, //calculate dynamically
+			
+			thumb_x : 0.0, //calculate dynamically
+			thumb_y : 0.0, //calculate dynamically
+			thumb_margin : 3.0,
+			thumb_width : 0.0, //calculate dynamically
+			thumb_height : 20.0,
+			thumb_rel_offset : 0.0, //calculate dynamically
+			
+			scroll_perc : 0.0, //calculate dynamically
+		}
+	};
 	
 	//-------------------------------------------------------------------------------
 	
@@ -475,8 +524,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 		ctx.set_source_rgb(0.0, 0.0, 0.0);
 		
+		store.visible_lines = (h/25) as usize;
+		
+		if(store.cursor_pos > store.store.len() - store.visible_lines) {
+			store.cursor_pos = store.store.len() - store.visible_lines; 
+		}
+		
 		let mut i = 0;
-		for entry in store.store.iter().skip(store.cursor_pos).take((h/25) as usize) {
+		for entry in store.store.iter().skip(store.cursor_pos).take(store.visible_lines) {
 			i += 1;
 			ctx.move_to(30.0, 20.0+20.0* i as f64);
 			ctx.set_font_size(14.0);
@@ -488,22 +543,25 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 		
 		{
-			let bar_margin = 10.0;
-			let bar_width = 20.0;
-			let bar_height = h as f64 - bar_margin * 2.0;
+			store.scroll_bar.bar_height = h as f64 - store.scroll_bar.bar_padding * 2.0;
 			
-			let scroll_perc = store.cursor_pos as f64 / (store.store.len() - 1) as f64; //Scroll percentage in range [0,1]
+			store.scroll_bar.scroll_perc = store.cursor_pos as f64 / std::cmp::max(store.store.len() - store.visible_lines, 1) as f64; //Scroll percentage in range [0,1]
 			
-			let thumb_margin = 3.0;
-			let thumb_height = 20.0;
-			let thumb_rel_offset = f64::round((bar_height - thumb_height - thumb_margin * 2.0) * scroll_perc) + thumb_margin;
+			store.scroll_bar.thumb_rel_offset = f64::round((store.scroll_bar.bar_height - store.scroll_bar.thumb_height - store.scroll_bar.thumb_margin * 2.0) * store.scroll_bar.scroll_perc) + store.scroll_bar.thumb_margin;
+			
+			store.scroll_bar.x = w as f64 - store.scroll_bar.bar_width - store.scroll_bar.bar_padding;
+			store.scroll_bar.y = store.scroll_bar.bar_padding;
+			
+			store.scroll_bar.thumb_width = store.scroll_bar.bar_width - 2.0 * store.scroll_bar.thumb_margin;
+			store.scroll_bar.thumb_x = store.scroll_bar.x + store.scroll_bar.thumb_margin;
+			store.scroll_bar.thumb_y = store.scroll_bar.y + store.scroll_bar.thumb_rel_offset;
 			
 			ctx.set_source_rgb(0.7, 0.7, 0.7);
-			ctx.rectangle(w as f64 - bar_width - bar_margin, bar_margin, bar_width, bar_height);
+			ctx.rectangle(store.scroll_bar.x, store.scroll_bar.y, store.scroll_bar.bar_width, store.scroll_bar.bar_height);
 			ctx.fill();
 			
 			ctx.set_source_rgb(0.3, 0.3, 0.3);
-			ctx.rectangle(w as f64 - bar_width - bar_margin + thumb_margin, bar_margin + thumb_rel_offset, bar_width - 2.0 * thumb_margin, thumb_height);
+			ctx.rectangle(store.scroll_bar.thumb_x, store.scroll_bar.thumb_y, store.scroll_bar.thumb_width, store.scroll_bar.thumb_height);
 			ctx.fill();
 			
 		}
@@ -530,7 +588,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 					}
 				},
 			gdk::ScrollDirection::Down => {
-					if store.cursor_pos < store.store.len() - 1 {
+					if store.cursor_pos < store.store.len() - store.visible_lines {
 						store.cursor_pos = store.cursor_pos + 1;
 						dirty = true;
 					}
@@ -547,7 +605,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	}
 	
 	fn handle_evt_press(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventButton) -> gtk::Inhibit {
-		let h = _drawing_area.get_allocated_height();
+		/*let h = _drawing_area.get_allocated_height();
 		let mut scroll_perc = evt.get_position().1/h as f64;
 		if scroll_perc < 0.0 {
 			scroll_perc = 0.0;
@@ -555,14 +613,41 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			scroll_perc = 1.0;
 		}
 		store.cursor_pos = f64::round(scroll_perc * (store.store.len() - 1) as f64) as usize;
-		_drawing_area.queue_draw();
+		_drawing_area.queue_draw();*/
 		//println!("PRESS pos:  {:?}", evt.get_position());
 		//println!("PRESS root: {:?}", evt.get_root());
+		
+		store.mouse_down = true;
+		if
+		evt.get_position().0 >= store.scroll_bar.thumb_x &&
+		evt.get_position().0 <= store.scroll_bar.thumb_x + store.scroll_bar.thumb_width &&
+		evt.get_position().1 >= store.scroll_bar.thumb_y &&
+		evt.get_position().1 <= store.scroll_bar.thumb_y + store.scroll_bar.thumb_height {
+			store.thumb_drag = true;
+			store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
+			store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
+		}
 		gtk::Inhibit(false)
 	}
 	
 	fn handle_evt_release(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventButton) -> gtk::Inhibit {
 		println!("RELEASE");
+		store.mouse_down = false;
+		store.thumb_drag = false;
+		store.thumb_drag_x = 0.0;
+		store.thumb_drag_y = 0.0;
+		gtk::Inhibit(false)
+	}
+	
+	fn handle_evt_motion(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventMotion) -> gtk::Inhibit {
+		if store.thumb_drag {
+			store.scroll_bar.thumb_y = evt.get_position().1 - store.thumb_drag_y;
+			store.scroll_bar.thumb_rel_offset = store.scroll_bar.thumb_y - store.scroll_bar.y;
+			store.scroll_bar.scroll_perc = (store.scroll_bar.thumb_rel_offset - store.scroll_bar.thumb_margin) / (store.scroll_bar.bar_height - store.scroll_bar.thumb_height - store.scroll_bar.thumb_margin * 2.0);
+			store.cursor_pos = (store.scroll_bar.scroll_perc * (store.store.len() - store.visible_lines) as f64) as usize;
+			println!("MOTION {:?}", evt.get_position());
+			_drawing_area.queue_draw();
+		}
 		gtk::Inhibit(false)
 	}
 	
@@ -579,6 +664,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
+	
+	// https://gtk-rs.org/docs/gtk/trait.WidgetExt.html
 	let f_clone_2 = f.clone();
 	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.clone().borrow_mut(), x, y));
 	
@@ -590,6 +677,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	let f_clone_5 = f.clone();
 	drawing_area.connect_button_release_event(move |x, y| handle_evt_release(&mut f_clone_5.clone().borrow_mut(), x, y));
+	
+	let f_clone_6 = f.clone();
+	drawing_area.connect_motion_notify_event(move |x, y| handle_evt_motion(&mut f_clone_6.clone().borrow_mut(), x, y));
 	
 	split_pane.pack_start(&drawing_area, true, true, 10);
 
