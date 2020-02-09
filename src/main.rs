@@ -11,6 +11,7 @@ use gtk::prelude::*;
 use gtk::DrawingArea;
 use gdk::EventMask;
 
+use chrono::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -27,10 +28,19 @@ use gtk::{
 
 use std::env::args;
 
+
+pub struct LogEntryExt {
+	pub timestamp : chrono::DateTime<Utc>,
+	pub severity : model::LogLevel,
+	pub message : String,
+	pub source_id : u32,
+	pub visible : bool,
+}
+
 // Extended log source (not part of the API)
 enum LogSourceContentsExt {
 	Sources(Vec::<LogSourceExt>),
-	Entries(Vec::<model::LogEntry>),
+	Entries(Vec::<LogEntryExt>),
 }
 
 // Extended log source (not part of the API)
@@ -52,7 +62,16 @@ fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
 			LogSourceContentsExt::Sources(contents)
 		},
 		model::LogSourceContents::Entries(v) => {
-			LogSourceContentsExt::Entries(v)
+			LogSourceContentsExt::Entries(
+				v.into_iter().map(
+					move |entry| LogEntryExt {
+						timestamp: entry.timestamp,
+						severity: entry.severity,
+						message: entry.message,
+						source_id: 0,
+						visible: true
+					}
+				).collect())
 		},
 	};
 	LogSourceExt {name: log_source.name, id: 0, child_cnt: 0, children: children}
@@ -85,7 +104,10 @@ impl LogSourceExt {
 				}
 				id_idx
 			},
-			LogSourceContentsExt::Entries(_v) => {
+			LogSourceContentsExt::Entries(v) => {
+				for entry in v.iter_mut() {
+					entry.source_id = self.id;
+				}
 				self.id
 			},
 		}
@@ -277,25 +299,26 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	// left pane
     let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
 	let left_store_sort = gtk::TreeModelSort::new(&left_store);
-	let left_tree = gtk::TreeView::new_with_model(&left_store_sort);
-    left_tree.set_headers_visible(true);
+	let sources_tree_view = gtk::TreeView::new_with_model(&left_store_sort);
+    sources_tree_view.set_headers_visible(true);
 	
+	{
+		//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
+		let store_clone = left_store_sort.clone();
+		left_store_sort.set_sort_func(gtk::SortColumn::Index(LogSourcesColumns::Text as u32), move |_w, l_it, r_it| {
+			let l_id = store_clone
+				.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
+				.get_some::<u64>()
+				.unwrap();
+			let r_id = store_clone
+				.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
+				.get_some::<u64>()
+				.unwrap();
+			l_id.cmp(&r_id)
+		} );
+	}
 	
-	//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
-	let store_clone = left_store_sort.clone();
-	left_store_sort.set_sort_func(gtk::SortColumn::Index(LogSourcesColumns::Text as u32), move |_w, l_it, r_it| {
-		let l_id = store_clone
-			.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
-			.get_some::<u64>()
-			.unwrap();
-		let r_id = store_clone
-			.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
-			.get_some::<u64>()
-			.unwrap();
-		l_id.cmp(&r_id)
-	} );
-	
-	// Column for fixed toggles
+	// Column with checkbox to toggle log sources, plus log source name
     {
 		let column = gtk::TreeViewColumn::new();
 		// https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
@@ -325,9 +348,10 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
-		left_tree.append_column(&column);
+		sources_tree_view.append_column(&column);
 	}
 	
+	//Column with number of entries of a log source
 	{
 		let column = gtk::TreeViewColumn::new();
 		column.set_title("Entries");
@@ -341,7 +365,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
 		}
-		left_tree.append_column(&column);
+		sources_tree_view.append_column(&column);
 	}
 	
 	fn build_left_store(store: &TreeStore, log_source: &LogSourceExt, parent: Option<&gtk::TreeIter>) {
@@ -374,7 +398,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 	}
 	build_left_store(&left_store, &log_source_root_ext, None);
-	left_tree.expand_all();
+	sources_tree_view.expand_all();
 	
 	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
 
@@ -383,15 +407,15 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	scrolled_window_left.set_property("overlay-scrolling", &false).unwrap();
 	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	//scrolled_window_left.set_property("min-content-width", &200);
-	scrolled_window_left.add(&left_tree);
+	scrolled_window_left.add(&sources_tree_view);
 	split_pane.pack_start(&scrolled_window_left, false, false, 0);
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
 	// Assemble log store ----------------------------------------------------------
 	
-	let mut store = Vec::<model::LogEntry>::new();
+	let mut store = Vec::<LogEntryExt>::new();
 	
-	fn build_log_store(store: &mut Vec<model::LogEntry>, log_source: &mut LogSourceExt) {
+	fn build_log_store(store: &mut Vec<LogEntryExt>, log_source: &mut LogSourceExt) {
 		match &mut log_source.children {
 			LogSourceContentsExt::Sources(v) => {
 				for source in v {
@@ -427,7 +451,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	}
 	
 	struct LogStoreLinear {
-		store : Vec::<model::LogEntry>,
+		store : Vec::<LogEntryExt>,
 		visible_lines : usize,
 		cursor_pos : usize,
 		mouse_down : bool,
@@ -687,27 +711,27 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
-	let f = Rc::new(RefCell::new(store));
-	let f_clone_1 = f.clone();
+	let store_rc = Rc::new(RefCell::new(store));
+	let f_clone_1 = store_rc.clone();
 	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.clone().borrow_mut(), x, y));
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
 	
 	// https://gtk-rs.org/docs/gtk/trait.WidgetExt.html
-	let f_clone_2 = f.clone();
+	let f_clone_2 = store_rc.clone();
 	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.clone().borrow_mut(), x, y));
 	
-	let f_clone_3 = f.clone();
+	let f_clone_3 = store_rc.clone();
 	drawing_area.connect_scroll_event(move |x, y| handle_evt_scroll(&mut f_clone_3.clone().borrow_mut(), x, y));
 	
-	let f_clone_4 = f.clone();
+	let f_clone_4 = store_rc.clone();
 	drawing_area.connect_button_press_event(move |x, y| handle_evt_press(&mut f_clone_4.clone().borrow_mut(), x, y));
 	
-	let f_clone_5 = f.clone();
+	let f_clone_5 = store_rc.clone();
 	drawing_area.connect_button_release_event(move |x, y| handle_evt_release(&mut f_clone_5.clone().borrow_mut(), x, y));
 	
-	let f_clone_6 = f.clone();
+	let f_clone_6 = store_rc.clone();
 	drawing_area.connect_motion_notify_event(move |x, y| handle_evt_motion(&mut f_clone_6.clone().borrow_mut(), x, y));
 	
 	split_pane.pack_start(&drawing_area, true, true, 10);
