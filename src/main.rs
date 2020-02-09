@@ -237,202 +237,13 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	//println!("Inconsistent: {}", level_inconsistent);
 }
 
-fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
-    let window = gtk::ApplicationWindow::new(application);
-	//window.set_icon_from_file("../images/sherlog_icon.png");
-    window.set_title("Sherlog");
-    window.set_border_width(10);
-    window.set_position(gtk::WindowPosition::Center);
-    window.set_default_size(600, 400);
-	
-	//let args = &args().collect::<Vec<_>>();
-    /*//FIXME: Use handle-local-options once https://github.com/gtk-rs/gtk/issues/580 is a thing
-    let mut new_instance = false;
-    for arg in args {
-        match arg.as_str() {
-            "-n" | "--new-instance" => new_instance = true,
-            _ => (),
-        }
-    }*/
-    //println!("{:?}", args);
-	
-	//Generate fake log entries to test GUI ---------------------------------------------
-	
-	let log_entries = vec![
-		model::LogEntry { message: "TestCritical 121343245345".to_string(), severity: model::LogLevel::Critical, ..Default::default() },
-		model::LogEntry { message: "TestError 3405834068".to_string(),      severity: model::LogLevel::Error,    ..Default::default() },
-		model::LogEntry { message: "TestWarning 340958349068".to_string(),  severity: model::LogLevel::Warning,  ..Default::default() },
-		model::LogEntry { message: "TestInfo 3049580349568".to_string(),    severity: model::LogLevel::Info,     ..Default::default() },
-		model::LogEntry { message: "TestDebug 0345986045968".to_string(),   severity: model::LogLevel::Debug,    ..Default::default() },
-		model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() },
-		];
-	
-	//Vec::<model::LogEntry>::new()
-	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
-	let log_source_ex2_1 = model::LogSource {name: "example2_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
-	let log_source_ex2 = model::LogSource {name: "example2".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex2_1]) } };
-	let log_source_ex3 = model::LogSource {name: "example3".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
-	let log_source_ex4_1 = model::LogSource {name: "example4_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
-	let log_source_ex4_2 = model::LogSource {name: "example4_2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
-	let log_source_ex4 = model::LogSource {name: "examale4".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
-	
-	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
-	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
-	
-	//---------------------------------------------------------------------------------------
-	
-	println!("{:?}", file_paths);
-	let log_source_root = if !file_paths.is_empty() {
-		if file_paths.len() > 1 {
-			println!("WARNING: Multiple files opened, ignoring all but the first one.");
-		}
-		parse::from_file(&file_paths[0]).expect("Could not read file!")
-	} else {
-		log_source_root
-	};
-	
-	
-	let mut log_source_root_ext = extend_log_source(log_source_root);
-	log_source_root_ext.generate_ids();
-	log_source_root_ext.calc_child_cnt();
-	
-	// left pane
-    let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
-	let left_store_sort = gtk::TreeModelSort::new(&left_store);
-	let sources_tree_view = gtk::TreeView::new_with_model(&left_store_sort);
-    sources_tree_view.set_headers_visible(true);
-	
-	{
-		//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
-		let store_clone = left_store_sort.clone();
-		left_store_sort.set_sort_func(gtk::SortColumn::Index(LogSourcesColumns::Text as u32), move |_w, l_it, r_it| {
-			let l_id = store_clone
-				.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
-				.get_some::<u64>()
-				.unwrap();
-			let r_id = store_clone
-				.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
-				.get_some::<u64>()
-				.unwrap();
-			l_id.cmp(&r_id)
-		} );
-	}
-	
-	// Column with checkbox to toggle log sources, plus log source name
-    {
-		let column = gtk::TreeViewColumn::new();
-		// https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
-		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
-		column.set_title("Log source");
-		column.set_fixed_width(300);
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogSourcesColumns::Text as i32);
-		
-		{
-			let renderer_toggle = gtk::CellRendererToggle::new();
-			//renderer_toggle.set_property_inconsistent(true);
-			renderer_toggle.set_alignment(0.0, 0.0);
-			//renderer_toggle.set_padding(0, 0);
-			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
-			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, w, path));
-			column.pack_start(&renderer_toggle, false);
-			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
-			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
-		}
-		
-		{
-			let renderer_text = CellRendererText::new();
-			renderer_text.set_alignment(0.0, 0.0);
-			column.pack_start(&renderer_text, false);
-			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
-		}
-		sources_tree_view.append_column(&column);
-	}
-	
-	//Column with number of entries of a log source
-	{
-		let column = gtk::TreeViewColumn::new();
-		column.set_title("Entries");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
-		
-		{
-			let renderer_text = CellRendererText::new();
-			renderer_text.set_alignment(0.0, 0.0);
-			column.pack_start(&renderer_text, false);
-			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
-		}
-		sources_tree_view.append_column(&column);
-	}
-	
-	fn build_left_store(store: &TreeStore, log_source: &LogSourceExt, parent: Option<&gtk::TreeIter>) {
-		let new_parent = store.insert_with_values(
-			parent,
-			None,
-			&[
-			LogSourcesColumns::Active as u32,
-			LogSourcesColumns::Inconsistent as u32,
-			LogSourcesColumns::Text as u32,
-			LogSourcesColumns::Id as u32,
-			LogSourcesColumns::ChildCount as u32,
-			],
-			&[
-			&true,
-			&false,
-			&log_source.name,
-			&log_source.id,
-			&log_source.child_cnt
-			]);
-		match &log_source.children {
-			LogSourceContentsExt::Sources(v) => {
-				for source in v {
-					build_left_store(store, source, Some(&new_parent));
-				}
-			},
-			LogSourceContentsExt::Entries(_v) => {
-				()
-			},
-		}
-	}
-	build_left_store(&left_store, &log_source_root_ext, None);
-	sources_tree_view.expand_all();
-	
-	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
 
-    split_pane.set_size_request(-1, -1);
-	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
-	scrolled_window_left.set_property("overlay-scrolling", &false).unwrap();
-	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-	//scrolled_window_left.set_property("min-content-width", &200);
-	scrolled_window_left.add(&sources_tree_view);
-	split_pane.pack_start(&scrolled_window_left, false, false, 0);
-	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
-	
-	// Assemble log store ----------------------------------------------------------
-	
-	let mut store = Vec::<LogEntryExt>::new();
-	
-	fn build_log_store(store: &mut Vec<LogEntryExt>, log_source: &mut LogSourceExt) {
-		match &mut log_source.children {
-			LogSourceContentsExt::Sources(v) => {
-				for source in v {
-					build_log_store(store, source);
-				}
-			},
-			LogSourceContentsExt::Entries(v) => {
-				store.append(v);
-				()
-			},
-		}
-	}
-	
-	build_log_store(&mut store, &mut log_source_root_ext);
-	store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-	
-	struct ScrollBarVert {
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+
+
+struct ScrollBarVert {
 		x : f64,
 		y : f64,
 		
@@ -460,38 +271,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		thumb_drag_y : f64,
 		scroll_bar : ScrollBarVert,
 	}
-	
-	let store = LogStoreLinear {
-		store : store,
-		cursor_pos : 0,
-		visible_lines : 0,
-		mouse_down : false,
-		thumb_drag : false,
-		thumb_drag_x : 0.0,
-		thumb_drag_y : 0.0,
-		scroll_bar : ScrollBarVert {
-			x : 0.0,
-			y : 0.0,
-			
-			bar_padding : 10.0,
-			bar_width : 20.0,
-			bar_height : 0.0, //calculate dynamically
-			
-			thumb_x : 0.0, //calculate dynamically
-			thumb_y : 0.0, //calculate dynamically
-			thumb_margin : 3.0,
-			thumb_width : 0.0, //calculate dynamically
-			thumb_height : 20.0,
-			thumb_rel_offset : 0.0, //calculate dynamically
-			
-			scroll_perc : 0.0, //calculate dynamically
-		}
-	};
-	
-	//-------------------------------------------------------------------------------
-	
-	
-	fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
+
+
+//--------------------------------------------------------------------------------------------------
+
+fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
 		//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
 		//println!("{}", store.store.len());
 		
@@ -703,6 +487,234 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 		gtk::Inhibit(false)
 	}
+
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+
+fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
+    let window = gtk::ApplicationWindow::new(application);
+	//window.set_icon_from_file("../images/sherlog_icon.png");
+    window.set_title("Sherlog");
+    window.set_border_width(10);
+    window.set_position(gtk::WindowPosition::Center);
+    window.set_default_size(600, 400);
+	
+	//let args = &args().collect::<Vec<_>>();
+    /*//FIXME: Use handle-local-options once https://github.com/gtk-rs/gtk/issues/580 is a thing
+    let mut new_instance = false;
+    for arg in args {
+        match arg.as_str() {
+            "-n" | "--new-instance" => new_instance = true,
+            _ => (),
+        }
+    }*/
+    //println!("{:?}", args);
+	
+	//Generate fake log entries to test GUI ---------------------------------------------
+	
+	let log_entries = vec![
+		model::LogEntry { message: "TestCritical 121343245345".to_string(), severity: model::LogLevel::Critical, ..Default::default() },
+		model::LogEntry { message: "TestError 3405834068".to_string(),      severity: model::LogLevel::Error,    ..Default::default() },
+		model::LogEntry { message: "TestWarning 340958349068".to_string(),  severity: model::LogLevel::Warning,  ..Default::default() },
+		model::LogEntry { message: "TestInfo 3049580349568".to_string(),    severity: model::LogLevel::Info,     ..Default::default() },
+		model::LogEntry { message: "TestDebug 0345986045968".to_string(),   severity: model::LogLevel::Debug,    ..Default::default() },
+		model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() },
+		];
+	
+	//Vec::<model::LogEntry>::new()
+	let log_source_ex = model::LogSource {name: "example".to_string(), children: {model::LogSourceContents::Entries(log_entries) } };
+	let log_source_ex2_1 = model::LogSource {name: "example2_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex2 = model::LogSource {name: "example2".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex2_1]) } };
+	let log_source_ex3 = model::LogSource {name: "example3".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4_1 = model::LogSource {name: "example4_1".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4_2 = model::LogSource {name: "example4_2".to_string(), children: {model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) } };
+	let log_source_ex4 = model::LogSource {name: "examale4".to_string(), children: {model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) } };
+	
+	let log_source_root = model::LogSource {name: "Root LogSource".to_string(), children: {model::LogSourceContents::Sources(
+	vec![log_source_ex, log_source_ex2, log_source_ex3, log_source_ex4]) } };
+	
+	//---------------------------------------------------------------------------------------
+	
+	println!("{:?}", file_paths);
+	let log_source_root = if !file_paths.is_empty() {
+		if file_paths.len() > 1 {
+			println!("WARNING: Multiple files opened, ignoring all but the first one.");
+		}
+		parse::from_file(&file_paths[0]).expect("Could not read file!")
+	} else {
+		log_source_root
+	};
+	
+	
+	let mut log_source_root_ext = extend_log_source(log_source_root);
+	log_source_root_ext.generate_ids();
+	log_source_root_ext.calc_child_cnt();
+	
+	// left pane
+    let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
+	let left_store_sort = gtk::TreeModelSort::new(&left_store);
+	let sources_tree_view = gtk::TreeView::new_with_model(&left_store_sort);
+    sources_tree_view.set_headers_visible(true);
+	
+	{
+		//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
+		let store_clone = left_store_sort.clone();
+		left_store_sort.set_sort_func(gtk::SortColumn::Index(LogSourcesColumns::Text as u32), move |_w, l_it, r_it| {
+			let l_id = store_clone
+				.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
+				.get_some::<u64>()
+				.unwrap();
+			let r_id = store_clone
+				.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
+				.get_some::<u64>()
+				.unwrap();
+			l_id.cmp(&r_id)
+		} );
+	}
+	
+	// Column with checkbox to toggle log sources, plus log source name
+    {
+		let column = gtk::TreeViewColumn::new();
+		// https://lazka.github.io/pgi-docs/Gtk-3.0/classes/TreeViewColumn.html#Gtk.TreeViewColumn.set_sort_indicator
+		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
+		column.set_title("Log source");
+		column.set_fixed_width(300);
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogSourcesColumns::Text as i32);
+		
+		{
+			let renderer_toggle = gtk::CellRendererToggle::new();
+			//renderer_toggle.set_property_inconsistent(true);
+			renderer_toggle.set_alignment(0.0, 0.0);
+			//renderer_toggle.set_padding(0, 0);
+			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
+			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, w, path));
+			column.pack_start(&renderer_toggle, false);
+			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
+			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
+		}
+		
+		{
+			let renderer_text = CellRendererText::new();
+			renderer_text.set_alignment(0.0, 0.0);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
+		}
+		sources_tree_view.append_column(&column);
+	}
+	
+	//Column with number of entries of a log source
+	{
+		let column = gtk::TreeViewColumn::new();
+		column.set_title("Entries");
+		column.set_sort_indicator(true);
+		column.set_clickable(true);
+		column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
+		
+		{
+			let renderer_text = CellRendererText::new();
+			renderer_text.set_alignment(0.0, 0.0);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
+		}
+		sources_tree_view.append_column(&column);
+	}
+	
+	fn build_left_store(store: &TreeStore, log_source: &LogSourceExt, parent: Option<&gtk::TreeIter>) {
+		let new_parent = store.insert_with_values(
+			parent,
+			None,
+			&[
+			LogSourcesColumns::Active as u32,
+			LogSourcesColumns::Inconsistent as u32,
+			LogSourcesColumns::Text as u32,
+			LogSourcesColumns::Id as u32,
+			LogSourcesColumns::ChildCount as u32,
+			],
+			&[
+			&true,
+			&false,
+			&log_source.name,
+			&log_source.id,
+			&log_source.child_cnt
+			]);
+		match &log_source.children {
+			LogSourceContentsExt::Sources(v) => {
+				for source in v {
+					build_left_store(store, source, Some(&new_parent));
+				}
+			},
+			LogSourceContentsExt::Entries(_v) => {
+				()
+			},
+		}
+	}
+	build_left_store(&left_store, &log_source_root_ext, None);
+	sources_tree_view.expand_all();
+	
+	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
+
+    split_pane.set_size_request(-1, -1);
+	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
+	scrolled_window_left.set_property("overlay-scrolling", &false).unwrap();
+	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
+	//scrolled_window_left.set_property("min-content-width", &200);
+	scrolled_window_left.add(&sources_tree_view);
+	split_pane.pack_start(&scrolled_window_left, false, false, 0);
+	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
+	
+	// Assemble log store ----------------------------------------------------------
+	
+	let mut store = Vec::<LogEntryExt>::new();
+	
+	fn build_log_store(store: &mut Vec<LogEntryExt>, log_source: &mut LogSourceExt) {
+		match &mut log_source.children {
+			LogSourceContentsExt::Sources(v) => {
+				for source in v {
+					build_log_store(store, source);
+				}
+			},
+			LogSourceContentsExt::Entries(v) => {
+				store.append(v);
+				()
+			},
+		}
+	}
+	
+	build_log_store(&mut store, &mut log_source_root_ext);
+	store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+	
+	let store = LogStoreLinear {
+		store : store,
+		cursor_pos : 0,
+		visible_lines : 0,
+		mouse_down : false,
+		thumb_drag : false,
+		thumb_drag_x : 0.0,
+		thumb_drag_y : 0.0,
+		scroll_bar : ScrollBarVert {
+			x : 0.0,
+			y : 0.0,
+			
+			bar_padding : 10.0,
+			bar_width : 20.0,
+			bar_height : 0.0, //calculate dynamically
+			
+			thumb_x : 0.0, //calculate dynamically
+			thumb_y : 0.0, //calculate dynamically
+			thumb_margin : 3.0,
+			thumb_width : 0.0, //calculate dynamically
+			thumb_height : 20.0,
+			thumb_rel_offset : 0.0, //calculate dynamically
+			
+			scroll_perc : 0.0, //calculate dynamically
+		}
+	};
+	
+	//-------------------------------------------------------------------------------
 	
 	let drawing_area = DrawingArea::new();
 	let event_mask = EventMask::POINTER_MOTION_MASK
