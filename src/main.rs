@@ -406,7 +406,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	}
 	
 	build_log_store(&mut store, &mut log_source_root_ext);
-	store.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+	store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 	
 	struct ScrollBarVert {
 		x : f64,
@@ -496,26 +496,64 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 		store.visible_lines = (h/25) as usize;
 		
-		if store.cursor_pos > store.store.len() - store.visible_lines {
+		if store.store.len() < store.visible_lines {
+			//No scrolling possible, less entries than rows on GUI!
+			store.cursor_pos = 0;
+		}else if store.cursor_pos > store.store.len() - store.visible_lines {
 			store.cursor_pos = store.store.len() - store.visible_lines; 
 		}
 		
 		let mut i = 0;
 		for entry in store.store.iter().skip(store.cursor_pos).take(store.visible_lines) {
 			i += 1;
-			ctx.move_to(30.0, 20.0+20.0* i as f64);
+			
+			ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
 			ctx.set_font_size(14.0);
+			
+			match entry.severity {
+				model::LogLevel::Critical => { ctx.set_source_rgb(0.5, 0.0, 0.0); }, // Dark red
+				model::LogLevel::Error => { ctx.set_source_rgb(1.0, 0.0, 0.0); }, //Red
+				model::LogLevel::Warning => { ctx.set_source_rgb(0.77, 0.58, 0.0); }, //Dirty yellow-orange
+				model::LogLevel::Info => { ctx.set_source_rgb(0.0, 0.0, 0.0); }, //Black
+				model::LogLevel::Debug => { ctx.set_source_rgb(0.6, 0.6, 0.6); }, //Grey
+				model::LogLevel::Trace => { ctx.set_source_rgb(0.4, 0.4, 0.4); }, //Light grey
+			}
+			
+			let date_str = entry.timestamp.format("%y-%m-%d %T%.3f").to_string();
+			ctx.move_to(30.0, 20.0+20.0* i as f64);
+			ctx.show_text(&date_str);
+			
+			let short_sev = match entry.severity {
+				model::LogLevel::Critical => "CRI",
+				model::LogLevel::Error => "ERR",
+				model::LogLevel::Warning => "WRN",
+				model::LogLevel::Info => "INF",
+				model::LogLevel::Debug => "DBG",
+				model::LogLevel::Trace => "TRC",
+			};
+			
+			ctx.move_to(210.0, 20.0+20.0* i as f64);
+			ctx.show_text(&short_sev);
+			
+			
+			ctx.move_to(240.0, 20.0+20.0* i as f64);
+			
 			/*let font_face = ctx.get_font_face();
 			let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
 			ctx.set_font_face(&new_font_face);*/
-			ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+			
 			ctx.show_text(&entry.message);
 		}
 		
 		{
 			store.scroll_bar.bar_height = h as f64 - store.scroll_bar.bar_padding * 2.0;
 			
-			store.scroll_bar.scroll_perc = store.cursor_pos as f64 / std::cmp::max(store.store.len() - store.visible_lines, 1) as f64; //Scroll percentage in range [0,1]
+			if store.store.len() < store.visible_lines {
+				//No scrolling possible, less entries than rows on GUI!
+				store.scroll_bar.scroll_perc = 0.0;
+			}else {
+				store.scroll_bar.scroll_perc = store.cursor_pos as f64 / (store.store.len() - store.visible_lines) as f64; //Scroll percentage in range [0,1]
+			}
 			
 			store.scroll_bar.thumb_rel_offset = f64::round((store.scroll_bar.bar_height - store.scroll_bar.thumb_height - store.scroll_bar.thumb_margin * 2.0) * store.scroll_bar.scroll_perc) + store.scroll_bar.thumb_margin;
 			
@@ -543,34 +581,55 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	fn handle_evt(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
 		//_drawing_area.queue_draw();
 		if evt.get_event_type() != gdk::EventType::MotionNotify {
+			//Performance test
+			/*let mut a = 5.0;
+			for entry in store.store.iter() {
+				match entry.severity {
+					model::LogLevel::Critical => { a += 1.1; },
+					model::LogLevel::Error => { a += 1.23; },
+					model::LogLevel::Warning => { a += 1.29; },
+					model::LogLevel::Info => { a += 5.984; },
+					model::LogLevel::Debug => { a += 6.98; },
+					model::LogLevel::Trace => { a += 2.158; },
+				}
+			}*/
 			println!("Event: {:?}", evt.get_event_type());
 		}
 		gtk::Inhibit(false)
 	}
 	
-	fn handle_evt_scroll(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventScroll) -> gtk::Inhibit {
+	fn handle_evt_scroll(store: &mut LogStoreLinear, drawing_area: &DrawingArea, evt: &gdk::EventScroll) -> gtk::Inhibit {
+		let scroll_speed = 3;
 		let mut dirty = false;
 		match evt.get_direction() {
 			gdk::ScrollDirection::Up => {
-					if store.cursor_pos > 0 {
-						store.cursor_pos = store.cursor_pos - 1;
+					if store.cursor_pos > scroll_speed {
+						store.cursor_pos = store.cursor_pos - scroll_speed;
+						dirty = true;
+					} else if store.cursor_pos != 0 {
+						store.cursor_pos = 0;
 						dirty = true;
 					}
 				},
 			gdk::ScrollDirection::Down => {
-					if store.cursor_pos < store.store.len() - store.visible_lines {
-						store.cursor_pos = store.cursor_pos + 1;
-						dirty = true;
+					if store.store.len() >= store.visible_lines {
+						let cursor_maxpos = store.store.len() - store.visible_lines; //NOTE: Goes past list when visible_lines == 0?!
+						if store.cursor_pos + scroll_speed < cursor_maxpos {
+							store.cursor_pos = store.cursor_pos + scroll_speed;
+							dirty = true;
+						}else if store.cursor_pos != cursor_maxpos {
+							store.cursor_pos = cursor_maxpos;
+							dirty = true;
+						}
 					}
 				},
 			_ => ()
 		}
 		
 		if dirty {
-			_drawing_area.queue_draw();
+			drawing_area.queue_draw();
 		}
 		
-		//println!("Event-scroll!");
 		gtk::Inhibit(false)
 	}
 	
