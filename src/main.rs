@@ -125,17 +125,20 @@ enum LogSourcesColumns {
 fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 	tree_store: &gtk::TreeStore,
     model_sort: &gtk::TreeModelSort,
+	store: &mut LogStoreLinear,
     _w: &W,
     path: gtk::TreePath,
 ) {
 	fixed_toggled(
 		tree_store,
+		store,
 		_w,
 		model_sort.convert_path_to_child_path(&path).unwrap());
 }
 
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store: &gtk::TreeStore,
+	store: &mut LogStoreLinear,
     _w: &W,
     path: gtk::TreePath,
 ) {
@@ -234,6 +237,14 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	activate_children(tree_store, path, active, &mut sources);
 	println!("Click: {:?} change to {}", sources, active);
 	
+	{
+		for entry in store.store.iter_mut() {
+			if sources.contains(&entry.source_id) {
+				entry.visible = active;
+			}
+		}
+	}
+	
 	//println!("Inconsistent: {}", level_inconsistent);
 }
 
@@ -325,6 +336,10 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 				model::LogLevel::Info => { ctx.set_source_rgb(0.0, 0.0, 0.0); }, //Black
 				model::LogLevel::Debug => { ctx.set_source_rgb(0.6, 0.6, 0.6); }, //Grey
 				model::LogLevel::Trace => { ctx.set_source_rgb(0.4, 0.4, 0.4); }, //Light grey
+			}
+			
+			if !entry.visible {
+				ctx.set_source_rgb(0.9, 0.9, 0.9);
 			}
 			
 			let date_str = entry.timestamp.format("%y-%m-%d %T%.3f").to_string();
@@ -481,6 +496,11 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 			store.scroll_bar.thumb_y = evt.get_position().1 - store.thumb_drag_y;
 			store.scroll_bar.thumb_rel_offset = store.scroll_bar.thumb_y - store.scroll_bar.y;
 			store.scroll_bar.scroll_perc = (store.scroll_bar.thumb_rel_offset - store.scroll_bar.thumb_margin) / (store.scroll_bar.bar_height - store.scroll_bar.thumb_height - store.scroll_bar.thumb_margin * 2.0);
+			if store.scroll_bar.scroll_perc < 0.0 {
+				store.scroll_bar.scroll_perc = 0.0;
+			} else if store.scroll_bar.scroll_perc > 1.0 {
+				store.scroll_bar.scroll_perc = 1.0;
+			}
 			store.cursor_pos = (store.scroll_bar.scroll_perc * (store.store.len() - store.visible_lines) as f64) as usize;
 			println!("MOTION {:?}", evt.get_position());
 			_drawing_area.queue_draw();
@@ -546,6 +566,39 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		log_source_root
 	};
 	
+	// Create log store as Refcounted RefCell to be used in closures ------------------------
+		
+	let store = LogStoreLinear {
+		store : Vec::<LogEntryExt>::new(),
+		cursor_pos : 0,
+		visible_lines : 0,
+		mouse_down : false,
+		thumb_drag : false,
+		thumb_drag_x : 0.0,
+		thumb_drag_y : 0.0,
+		scroll_bar : ScrollBarVert {
+			x : 0.0,
+			y : 0.0,
+			
+			bar_padding : 10.0,
+			bar_width : 20.0,
+			bar_height : 0.0, //calculate dynamically
+			
+			thumb_x : 0.0, //calculate dynamically
+			thumb_y : 0.0, //calculate dynamically
+			thumb_margin : 3.0,
+			thumb_width : 0.0, //calculate dynamically
+			thumb_height : 20.0,
+			thumb_rel_offset : 0.0, //calculate dynamically
+			
+			scroll_perc : 0.0, //calculate dynamically
+		}
+	};
+	
+	let store_rc = Rc::new(RefCell::new(store));
+	
+	//---------------------------------------------------------------------------------------
+	
 	
 	let mut log_source_root_ext = extend_log_source(log_source_root);
 	log_source_root_ext.generate_ids();
@@ -591,7 +644,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//renderer_toggle.set_padding(0, 0);
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
 			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, w, path));
+			let store_rc_clone = store_rc.clone();
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, &mut store_rc_clone.clone().borrow_mut(), w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
 			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
@@ -668,8 +722,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	// Assemble log store ----------------------------------------------------------
 	
-	let mut store = Vec::<LogEntryExt>::new();
-	
 	fn build_log_store(store: &mut Vec<LogEntryExt>, log_source: &mut LogSourceExt) {
 		match &mut log_source.children {
 			LogSourceContentsExt::Sources(v) => {
@@ -682,37 +734,10 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				()
 			},
 		}
+		store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 	}
 	
-	build_log_store(&mut store, &mut log_source_root_ext);
-	store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-	
-	let store = LogStoreLinear {
-		store : store,
-		cursor_pos : 0,
-		visible_lines : 0,
-		mouse_down : false,
-		thumb_drag : false,
-		thumb_drag_x : 0.0,
-		thumb_drag_y : 0.0,
-		scroll_bar : ScrollBarVert {
-			x : 0.0,
-			y : 0.0,
-			
-			bar_padding : 10.0,
-			bar_width : 20.0,
-			bar_height : 0.0, //calculate dynamically
-			
-			thumb_x : 0.0, //calculate dynamically
-			thumb_y : 0.0, //calculate dynamically
-			thumb_margin : 3.0,
-			thumb_width : 0.0, //calculate dynamically
-			thumb_height : 20.0,
-			thumb_rel_offset : 0.0, //calculate dynamically
-			
-			scroll_perc : 0.0, //calculate dynamically
-		}
-	};
+	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
 	
 	//-------------------------------------------------------------------------------
 	
@@ -723,7 +748,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
-	let store_rc = Rc::new(RefCell::new(store));
 	let f_clone_1 = store_rc.clone();
 	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.clone().borrow_mut(), x, y));
 
