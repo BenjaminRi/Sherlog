@@ -219,13 +219,13 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 					.get_some::<bool>()
 					.unwrap();
 			if n_active != active {
-				let n_id = tree_store
-					.get_value(&iter, LogSourcesColumns::Id as i32)
-					.get_some::<u32>()
-					.unwrap();
-				sources.push(n_id);
 				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
 			}
+			let n_id = tree_store
+				.get_value(&iter, LogSourcesColumns::Id as i32)
+				.get_some::<u32>()
+				.unwrap();
+			sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
 			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
 			activate_children(tree_store, path.clone(), active, sources);
 			path.next();
@@ -254,7 +254,8 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	}
 	
 	if !ordered {
-		println!("WARNING: Unordered log source tree detected!");
+		println!("ERROR: Unordered log source tree detected!");
+		panic!(); //If this happens you broke the tree structure
 	}
 	
 	let first_id = *sources.first().unwrap(); //We can do this because we know we pushed at least one id above.
