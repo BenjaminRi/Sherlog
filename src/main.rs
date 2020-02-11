@@ -69,7 +69,7 @@ fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
 						severity: entry.severity,
 						message: entry.message,
 						source_id: 0,
-						visible: true
+						visible: true,
 					}
 				).collect())
 		},
@@ -126,12 +126,14 @@ fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 	tree_store: &gtk::TreeStore,
     model_sort: &gtk::TreeModelSort,
 	store: &mut LogStoreLinear,
+	drawing_area : &gtk::DrawingArea,
     _w: &W,
     path: gtk::TreePath,
 ) {
 	fixed_toggled(
 		tree_store,
 		store,
+		drawing_area,
 		_w,
 		model_sort.convert_path_to_child_path(&path).unwrap());
 }
@@ -139,6 +141,7 @@ fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
 fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
     tree_store: &gtk::TreeStore,
 	store: &mut LogStoreLinear,
+	drawing_area : &gtk::DrawingArea,
     _w: &W,
     path: gtk::TreePath,
 ) {
@@ -235,17 +238,37 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		.unwrap();
 	sources.push(id);
 	activate_children(tree_store, path, active, &mut sources);
-	println!("Click: {:?} change to {}", sources, active);
+	//println!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
 	
-	{
-		for entry in store.store.iter_mut() {
-			if sources.contains(&entry.source_id) {
-				entry.visible = active;
-			}
+	let mut ordered = true;
+	let mut next_id = *sources.first().unwrap(); //We can do this because we know we pushed at least one id above.
+	for id in sources.iter() {
+		if next_id != *id {
+			ordered = false;
+			break;
+		}
+		else
+		{
+			next_id = next_id+1;
 		}
 	}
 	
+	if !ordered {
+		println!("WARNING: Unordered log source tree detected!");
+	}
+	
+	let first_id = *sources.first().unwrap(); //We can do this because we know we pushed at least one id above.
+	let last_id = *sources.last().unwrap(); //We can do this because we know we pushed at least one id above.
+	
+	//println!("Click: Range [{},{}] set to {}", first_id, last_id, active);
 	//println!("Inconsistent: {}", level_inconsistent);
+	
+	for entry in store.store.iter_mut() {
+		if entry.source_id >= first_id && entry.source_id <= last_id {
+			entry.visible = active;
+		}
+	}
+	drawing_area.queue_draw();
 }
 
 
@@ -323,7 +346,7 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		}
 		
 		let mut i = 0;
-		for entry in store.store.iter().skip(store.cursor_pos).take(store.visible_lines) {
+		for entry in store.store.iter().skip(store.cursor_pos).filter(|x| x.visible).take(store.visible_lines) {
 			i += 1;
 			
 			ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
@@ -599,6 +622,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	//---------------------------------------------------------------------------------------
 	
+	let drawing_area = DrawingArea::new();
+	
 	
 	let mut log_source_root_ext = extend_log_source(log_source_root);
 	log_source_root_ext.generate_ids();
@@ -644,8 +669,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//renderer_toggle.set_padding(0, 0);
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
 			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
+			let drawing_area_clone = drawing_area.clone(); //GTK objects are refcounted, just clones ref
 			let store_rc_clone = store_rc.clone();
-			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, &mut store_rc_clone.clone().borrow_mut(), w, path));
+			renderer_toggle.connect_toggled(move |w, path| fixed_toggled_sorted(&left_store_clone, &model_sort_clone, &mut store_rc_clone.clone().borrow_mut(), &drawing_area_clone, w, path));
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
 			column.add_attribute(&renderer_toggle, "inconsistent", LogSourcesColumns::Inconsistent as i32);
@@ -737,11 +763,12 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 	}
 	
+	println!("before build_log_store");
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
+	println!("after build_log_store");
 	
 	//-------------------------------------------------------------------------------
 	
-	let drawing_area = DrawingArea::new();
 	let event_mask = EventMask::POINTER_MOTION_MASK
 		| EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK
 		| EventMask::KEY_PRESS_MASK | EventMask::KEY_RELEASE_MASK | EventMask::SCROLL_MASK;
