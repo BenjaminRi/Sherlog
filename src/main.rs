@@ -15,6 +15,8 @@ use chrono::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use std::time::SystemTime;
+
 mod model;
 mod parse;
 
@@ -35,6 +37,7 @@ pub struct LogEntryExt {
 	pub message : String,
 	pub source_id : u32,
 	pub visible : bool,
+	pub entry_id : u32,
 }
 
 // Extended log source (not part of the API)
@@ -70,6 +73,7 @@ fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
 						message: entry.message,
 						source_id: 0,
 						visible: true,
+						entry_id : 0,
 					}
 				).collect())
 		},
@@ -249,7 +253,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 		}
 		else
 		{
-			next_id = next_id+1;
+			next_id += 1;
 		}
 	}
 	
@@ -264,11 +268,30 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	//println!("Click: Range [{},{}] set to {}", first_id, last_id, active);
 	//println!("Inconsistent: {}", level_inconsistent);
 	
+	
+	let now = SystemTime::now();
+	
+	let mut next_entry_id = 0;
 	for entry in store.store.iter_mut() {
 		if entry.source_id >= first_id && entry.source_id <= last_id {
 			entry.visible = active;
 		}
+		if entry.visible {
+			entry.entry_id = next_entry_id;
+			next_entry_id += 1;
+		}
 	}
+	
+	match now.elapsed() {
+		Ok(elapsed) => {
+			println!("Time to update store: {}ms", elapsed.as_secs()*1000+elapsed.subsec_millis() as u64);
+		}
+		Err(e) => {
+			// an error occurred!
+			println!("Error: {:?}", e);
+		}
+	}
+	
 	drawing_area.queue_draw();
 }
 
@@ -761,18 +784,39 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				()
 			},
 		}
-		store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 	}
 	
 	println!("before build_log_store");
+	let now = SystemTime::now();
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
+	
+	store_rc.borrow_mut().store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+	let mut next_entry_id : u32 = 0;
+	for entry in store_rc.borrow_mut().store.iter_mut() {
+		entry.entry_id = next_entry_id;
+		next_entry_id += 1;
+	}
+	
+	match now.elapsed() {
+		Ok(elapsed) => {
+			println!("Time to create store: {}ms", elapsed.as_secs()*1000+elapsed.subsec_millis() as u64);
+		}
+		Err(e) => {
+			// an error occurred!
+			println!("Error: {:?}", e);
+		}
+	}
 	println!("after build_log_store");
 	
 	//-------------------------------------------------------------------------------
 	
-	let event_mask = EventMask::POINTER_MOTION_MASK
-		| EventMask::BUTTON_PRESS_MASK | EventMask::BUTTON_RELEASE_MASK
-		| EventMask::KEY_PRESS_MASK | EventMask::KEY_RELEASE_MASK | EventMask::SCROLL_MASK;
+	let event_mask = 
+		EventMask::POINTER_MOTION_MASK |
+		EventMask::BUTTON_PRESS_MASK |
+		EventMask::BUTTON_RELEASE_MASK |
+		EventMask::KEY_PRESS_MASK |
+		EventMask::KEY_RELEASE_MASK |
+		EventMask::SCROLL_MASK;
 
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
