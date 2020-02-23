@@ -11,16 +11,23 @@ use gtk::prelude::*;
 use gtk::DrawingArea;
 use gdk::EventMask;
 
-use chrono::prelude::*;
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use std::time::SystemTime;
 
-mod model;
 mod parse;
-
+mod log_store;
+mod model;
+mod model_internal;
 mod tree_model;
+
+use log_store::LogStoreLinear;
+use log_store::ScrollBarVert;
+
+use model_internal::LogEntryExt;
+use model_internal::LogSourceContentsExt;
+use model_internal::LogSourceExt;
 
 #[allow(unused_imports)]
 use gtk::{
@@ -29,30 +36,6 @@ use gtk::{
 };
 
 use std::env::args;
-
-
-pub struct LogEntryExt {
-	pub timestamp : chrono::DateTime<Utc>,
-	pub severity : model::LogLevel,
-	pub message : String,
-	pub source_id : u32,
-	pub visible : bool,
-	pub entry_id : u32,
-}
-
-// Extended log source (not part of the API)
-enum LogSourceContentsExt {
-	Sources(Vec::<LogSourceExt>),
-	Entries(Vec::<LogEntryExt>),
-}
-
-// Extended log source (not part of the API)
-struct LogSourceExt {
-	name : String,
-	id : u32,
-	child_cnt : u64,
-	children : LogSourceContentsExt,
-}
 
 fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
 	let children = match log_source.children {
@@ -270,18 +253,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	
 	
 	let now = SystemTime::now();
-	
-	let mut next_entry_id = 0;
-	for entry in store.store.iter_mut() {
-		if entry.source_id >= first_id && entry.source_id <= last_id {
-			entry.visible = active;
-		}
-		if entry.visible {
-			entry.entry_id = next_entry_id;
-			next_entry_id += 1;
-		}
-	}
-	
+	store.filter_store(&|entry: &LogEntryExt| { entry.source_id >= first_id && entry.source_id <= last_id }, active);
 	match now.elapsed() {
 		Ok(elapsed) => {
 			println!("Time to update store: {}ms", elapsed.as_secs()*1000+elapsed.subsec_millis() as u64);
@@ -299,38 +271,6 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
-
-
-struct ScrollBarVert {
-		x : f64,
-		y : f64,
-		
-		bar_padding : f64,
-		bar_width : f64,
-		bar_height : f64,
-		
-		thumb_x : f64,
-		thumb_y : f64,
-		thumb_margin : f64,
-		thumb_width : f64,
-		thumb_height : f64,
-		thumb_rel_offset : f64,
-		
-		scroll_perc : f64,
-	}
-	
-	struct LogStoreLinear {
-		store : Vec::<LogEntryExt>,
-		visible_lines : usize,
-		cursor_pos : usize,
-		mouse_down : bool,
-		thumb_drag : bool,
-		thumb_drag_x : f64,
-		thumb_drag_y : f64,
-		scroll_bar : ScrollBarVert,
-	}
-
-
 //--------------------------------------------------------------------------------------------------
 
 fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Context) -> gtk::Inhibit {
