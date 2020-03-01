@@ -41,7 +41,7 @@ pub struct LogStoreLinear {
 
 impl LogStoreLinear {
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
-	pub fn filter_store(&mut self, filter : &Fn(&LogEntryExt) -> bool, active: bool) {
+	pub fn filter_store(&mut self, filter : &dyn Fn(&LogEntryExt) -> bool, active: bool) {
 		//Note: The code in this function must be fast. It is critical GUI code.
 		//If this code is slow, then the user will have noticeable GUI lag.
 		
@@ -168,6 +168,6 @@ impl LogStoreLinear {
 			}
 		}
 		
-		return (cursor_pos_old != self.cursor_pos);
+		return cursor_pos_old != self.cursor_pos;
 	}
 }

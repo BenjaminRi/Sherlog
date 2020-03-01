@@ -16,6 +16,7 @@ use std::cell::RefCell;
 
 use std::time::SystemTime;
 
+#[allow(unused_imports)]
 use regex::Regex;
 
 mod parse;
@@ -328,12 +329,12 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		gtk::Inhibit(false)
 	}
 	
-	fn handle_evt(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
+	fn handle_evt(_store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::Event) -> gtk::Inhibit {
 		//_drawing_area.queue_draw();
 		if evt.get_event_type() != gdk::EventType::MotionNotify {
 			//Performance test
 			/*let mut a = 5.0;
-			for entry in store.store.iter() {
+			for entry in _store.store.iter() {
 				match entry.severity {
 					model::LogLevel::Critical => { a += 1.1; },
 					model::LogLevel::Error => { a += 1.23; },
@@ -396,7 +397,7 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		gtk::Inhibit(false)
 	}
 	
-	fn handle_evt_release(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventButton) -> gtk::Inhibit {
+	fn handle_evt_release(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, _evt: &gdk::EventButton) -> gtk::Inhibit {
 		println!("RELEASE");
 		store.mouse_down = false;
 		store.thumb_drag = false;
