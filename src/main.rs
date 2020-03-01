@@ -635,7 +635,33 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	//scrolled_window_left.set_property("min-content-width", &200);
 	scrolled_window_left.add(&sources_tree_view);
-	split_pane.pack_start(&scrolled_window_left, false, false, 0);
+	
+	let split_pane_left = gtk::Box::new(Orientation::Vertical, 10);
+	split_pane_left.pack_start(&scrolled_window_left, true, true, 0);
+	{
+		let check_btn = gtk::CheckButton::new_with_label("Critical");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+		let check_btn = gtk::CheckButton::new_with_label("Error");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+		let check_btn = gtk::CheckButton::new_with_label("Warning");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+		let check_btn = gtk::CheckButton::new_with_label("Info");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+		let check_btn = gtk::CheckButton::new_with_label("Debug");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+		let check_btn = gtk::CheckButton::new_with_label("Trace");
+		check_btn.set_active(true);
+		split_pane_left.pack_start(&check_btn, false, false, 0);
+	}
+	
+	split_pane.pack_start(&split_pane_left, false, false, 0);
+	
+	
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 	
 	// Assemble log store ----------------------------------------------------------
