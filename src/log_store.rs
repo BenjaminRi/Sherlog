@@ -110,7 +110,7 @@ impl LogStoreLinear {
 		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
 		let mut offset = 0;
 		for entry in self.store.iter() {
-			if entry.visible && entry.entry_id == entry_id{
+			if entry.is_visible() && entry.entry_id == entry_id{
 				return Some(offset)
 			}
 			offset += 1;

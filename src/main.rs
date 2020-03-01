@@ -254,7 +254,7 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		}
 		
 		let mut i = 0;
-		for entry in store.store.iter().skip(store.cursor_pos).filter(|x| x.visible).take(store.visible_lines) {
+		for entry in store.store.iter().skip(store.cursor_pos).filter(|x| x.is_visible()).take(store.visible_lines) {
 			i += 1;
 			
 			ctx.select_font_face("Lucida Console", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
@@ -269,7 +269,7 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 				model::LogLevel::Trace => { ctx.set_source_rgb(0.4, 0.4, 0.4); }, //Light grey
 			}
 			
-			if !entry.visible {
+			if !entry.is_visible() {
 				ctx.set_source_rgb(0.9, 0.9, 0.9);
 			}
 			

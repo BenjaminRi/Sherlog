@@ -17,6 +17,12 @@ pub struct LogEntryExt {
 	//Therefore, stick to uint32 and not usize which doubles this amount
 }
 
+impl LogEntryExt {
+	pub fn is_visible(& self) -> bool {
+		self.visible
+	}
+}
+
 // Extended log source (not part of the API)
 pub enum LogSourceContentsExt {
 	Sources(Vec::<LogSourceExt>),
