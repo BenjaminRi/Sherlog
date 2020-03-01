@@ -106,7 +106,31 @@ impl LogStoreLinear {
 		if window_size >= self.entry_count {
 			return Some(0);
 		}
-		return Some(((self.entry_count - window_size) as f64 * perc) as usize);
+		
+		let entry_id = ((self.entry_count - window_size) as f64 * perc) as u32;
+		let mut offset = 0;
+		for entry in self.store.iter() {
+			if entry.visible && entry.entry_id == entry_id{
+				return Some(offset)
+			}
+			offset += 1;
+		}
+		
+		unreachable!()
+	}
+	
+	pub fn get_scroll_percentage(& self, window_size : usize) -> f64 {
+		if self.entry_count == 0 {
+			return 0.0; //Early exit to prevent getting nonexistent vec elements!
+		}
+		if self.entry_count <= window_size {
+			return 0.0; //Early exit to prevent division by 0, negative percentage
+		}
+		let percentage = (self.store[self.cursor_pos].entry_id as f64) / ((self.entry_count - window_size) as f64);
+		if percentage > 1.0 {
+			return 1.0; //clamp down if scrolled too far or window too large
+		}
+		return percentage;
 	}
 	
 	//Returns false if nothing happened, returns true if cursor changed
@@ -118,10 +142,8 @@ impl LogStoreLinear {
 		let mut abs_lines = lines.abs();
 		if lines < 0 {
 			while abs_lines > 0 {
-				println!("up");
 				let new_offset = self.store[self.cursor_pos].prev_offset as usize;
 				if self.cursor_pos == new_offset {
-					println!("up brk");
 					break; //reached end of list
 				}
 				self.cursor_pos = new_offset;
@@ -132,14 +154,12 @@ impl LogStoreLinear {
 				return false; //no scrolling down if window larger than number of rows
 			}
 			while abs_lines > 0 {
-				println!("down");
 				if (self.entry_count - window_size) <= self.store[self.cursor_pos].entry_id as usize{
 					break; //stop scrolling down, bottomed out window
 				}
 				
 				let new_offset = self.store[self.cursor_pos].next_offset as usize;
 				if self.cursor_pos == new_offset {
-					println!("down brk");
 					break; //reached end of list
 				}
 				

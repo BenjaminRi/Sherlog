@@ -294,12 +294,8 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		{
 			store.scroll_bar.bar_height = h as f64 - store.scroll_bar.bar_padding * 2.0;
 			
-			if store.store.len() < store.visible_lines {
-				//No scrolling possible, less entries than rows on GUI!
-				store.scroll_bar.scroll_perc = 0.0;
-			}else {
-				store.scroll_bar.scroll_perc = store.cursor_pos as f64 / (store.store.len() - store.visible_lines) as f64; //Scroll percentage in range [0,1]
-			}
+			
+			store.scroll_bar.scroll_perc = store.get_scroll_percentage(store.visible_lines);
 			
 			store.scroll_bar.thumb_rel_offset = f64::round((store.scroll_bar.bar_height - store.scroll_bar.thumb_height - store.scroll_bar.thumb_margin * 2.0) * store.scroll_bar.scroll_perc) + store.scroll_bar.thumb_margin;
 			
