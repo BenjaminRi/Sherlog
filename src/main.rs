@@ -137,6 +137,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	}
 	
 	fn activate_children(tree_store: &gtk::TreeStore, mut path: gtk::TreePath, active : bool, sources: &mut Vec::<u32>) {
+		//println!("activate_children... {:?}", path.get_indices_with_depth());
 		path.down();
 		while let Some(iter) = tree_store.get_iter(&path)
 		{
@@ -151,6 +152,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 				.get_value(&iter, LogSourcesColumns::Id as i32)
 				.get_some::<u32>()
 				.unwrap();
+			//println!("activate_children... {}", n_id);
 			sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
 			tree_store.set_value(&iter, LogSourcesColumns::Inconsistent as u32, &false.to_value());
 			activate_children(tree_store, path.clone(), active, sources);
