@@ -16,6 +16,8 @@ use std::cell::RefCell;
 
 use std::time::SystemTime;
 
+use regex::Regex;
+
 mod parse;
 mod log_store;
 mod model;
@@ -187,6 +189,12 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	//println!("Click: Range [{},{}] set to {}", first_id, last_id, active);
 	//println!("Inconsistent: {}", level_inconsistent);
 	
+	/*
+	let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
+	assert!(re.is_match("2014-01-01"));
+	let re = Regex::new(r"job").unwrap();
+	re.is_match(&entry.message)
+	*/
 	
 	let now = SystemTime::now();
 	store.filter_store(&|entry: &LogEntryExt| { entry.source_id >= first_id && entry.source_id <= last_id }, active);
@@ -498,7 +506,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			thumb_y : 0.0, //calculate dynamically
 			thumb_margin : 3.0,
 			thumb_width : 0.0, //calculate dynamically
-			thumb_height : 20.0,
+			thumb_height : 50.0,
 			thumb_rel_offset : 0.0, //calculate dynamically
 			
 			scroll_perc : 0.0, //calculate dynamically
