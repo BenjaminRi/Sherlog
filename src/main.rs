@@ -37,70 +37,6 @@ use gtk::{
 
 use std::env::args;
 
-fn extend_log_source(log_source : model::LogSource) -> LogSourceExt {
-	let children = match log_source.children {
-		model::LogSourceContents::Sources(v) => {
-			let mut contents = Vec::<LogSourceExt>::new();
-			contents.reserve(v.len());
-			for source in v {
-				contents.push(extend_log_source(source));
-			}
-			LogSourceContentsExt::Sources(contents)
-		},
-		model::LogSourceContents::Entries(v) => {
-			LogSourceContentsExt::Entries(
-				v.into_iter().map(
-					move |entry| LogEntryExt {
-						timestamp: entry.timestamp,
-						severity: entry.severity,
-						message: entry.message,
-						source_id: 0,
-						visible: true,
-						entry_id : 0,
-					}
-				).collect())
-		},
-	};
-	LogSourceExt {name: log_source.name, id: 0, child_cnt: 0, children: children}
-}
-
-impl LogSourceExt {
-	fn calc_child_cnt(&mut self) {
-		self.child_cnt = match &mut self.children {
-			LogSourceContentsExt::Sources(v) => {
-				let mut child_cnt : u64 = 0;
-				for source in v {
-					source.calc_child_cnt();
-					child_cnt += source.child_cnt;
-				}
-				child_cnt
-			},
-			LogSourceContentsExt::Entries(v) => {
-				v.len() as u64
-			},
-		}
-	}
-	fn generate_ids(&mut self) -> u32 {
-		match &mut self.children {
-			LogSourceContentsExt::Sources(v) => {
-				let mut id_idx = self.id;
-				for source in v {
-					id_idx += 1;
-					source.id = id_idx;
-					id_idx = source.generate_ids();
-				}
-				id_idx
-			},
-			LogSourceContentsExt::Entries(v) => {
-				for entry in v.iter_mut() {
-					entry.source_id = self.id;
-				}
-				self.id
-			},
-		}
-	}
-}
-
 enum LogSourcesColumns {
     Active = 0,
 	Inconsistent = 1,
@@ -589,7 +525,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	let drawing_area = DrawingArea::new();
 	
 	
-	let mut log_source_root_ext = extend_log_source(log_source_root);
+	let mut log_source_root_ext = LogSourceExt::from_source(log_source_root);
 	log_source_root_ext.generate_ids();
 	log_source_root_ext.calc_child_cnt();
 	
@@ -731,11 +667,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
 	
 	store_rc.borrow_mut().store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-	let mut next_entry_id : u32 = 0;
-	for entry in store_rc.borrow_mut().store.iter_mut() {
-		entry.entry_id = next_entry_id;
-		next_entry_id += 1;
-	}
+	store_rc.borrow_mut().filter_store(&|_entry: &LogEntryExt| { true }, true); //set all to active, initialize ids
 	
 	match now.elapsed() {
 		Ok(elapsed) => {
