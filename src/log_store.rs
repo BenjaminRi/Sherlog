@@ -107,7 +107,7 @@ impl LogStoreLinear {
 			return Some(0);
 		}
 		
-		let entry_id = ((self.entry_count - window_size) as f64 * perc) as u32;
+		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
 		let mut offset = 0;
 		for entry in self.store.iter() {
 			if entry.visible && entry.entry_id == entry_id{
