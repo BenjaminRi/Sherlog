@@ -58,10 +58,13 @@ impl LogSourceExt {
 					).collect())
 			},
 		};
-		LogSourceExt {name: log_source.name, id: 0, child_cnt: 0, children: children}
+		let mut source_ext = LogSourceExt {name: log_source.name, id: 0, child_cnt: 0, children: children};
+		source_ext.generate_ids();
+		source_ext.calc_child_cnt();
+		source_ext
 	}
 	
-	pub fn calc_child_cnt(&mut self) {
+	fn calc_child_cnt(&mut self) {
 		self.child_cnt = match &mut self.children {
 			LogSourceContentsExt::Sources(v) => {
 				let mut child_cnt : u64 = 0;
@@ -76,7 +79,7 @@ impl LogSourceExt {
 			},
 		}
 	}
-	pub fn generate_ids(&mut self) -> u32 {
+	fn generate_ids(&mut self) -> u32 {
 		match &mut self.children {
 			LogSourceContentsExt::Sources(v) => {
 				let mut id_idx = self.id;

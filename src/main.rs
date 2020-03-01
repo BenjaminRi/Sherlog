@@ -524,10 +524,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	let drawing_area = DrawingArea::new();
 	
-	
 	let mut log_source_root_ext = LogSourceExt::from_source(log_source_root);
-	log_source_root_ext.generate_ids();
-	log_source_root_ext.calc_child_cnt();
 	
 	// left pane
     let left_store = TreeStore::new(&[glib::Type::Bool, glib::Type::Bool, String::static_type(), glib::Type::U32, glib::Type::U64]);
