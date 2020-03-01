@@ -11,8 +11,8 @@ pub struct LogEntryExt {
 	pub source_id : u32,
 	pub visible : bool,
 	pub entry_id : u32,
-	pub prev_id : u32,
-	pub next_id : u32,
+	pub prev_offset : u32,
+	pub next_offset : u32,
 	//For 1 million objects, 3 uint32 require 20ms more to sort.
 	//Therefore, stick to uint32 and not usize which doubles this amount
 }
@@ -52,8 +52,8 @@ impl LogSourceExt {
 							source_id: 0,
 							visible: true,
 							entry_id : 0,
-							prev_id : 0,
-							next_id : 0,
+							prev_offset : 0,
+							next_offset : 0,
 						}
 					).collect())
 			},

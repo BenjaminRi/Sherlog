@@ -349,25 +349,10 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		let mut dirty = false;
 		match evt.get_direction() {
 			gdk::ScrollDirection::Up => {
-					if store.cursor_pos > scroll_speed {
-						store.cursor_pos = store.cursor_pos - scroll_speed;
-						dirty = true;
-					} else if store.cursor_pos != 0 {
-						store.cursor_pos = 0;
-						dirty = true;
-					}
+					dirty = store.scroll(-scroll_speed, store.visible_lines);
 				},
 			gdk::ScrollDirection::Down => {
-					if store.store.len() >= store.visible_lines {
-						let cursor_maxpos = store.store.len() - store.visible_lines; //NOTE: Goes past list when visible_lines == 0?!
-						if store.cursor_pos + scroll_speed < cursor_maxpos {
-							store.cursor_pos = store.cursor_pos + scroll_speed;
-							dirty = true;
-						}else if store.cursor_pos != cursor_maxpos {
-							store.cursor_pos = cursor_maxpos;
-							dirty = true;
-						}
-					}
+					dirty = store.scroll(scroll_speed, store.visible_lines);
 				},
 			_ => ()
 		}
@@ -375,6 +360,8 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		if dirty {
 			drawing_area.queue_draw();
 		}
+		
+		println!("Scroll... dirty: {}, pos: {}", dirty, store.cursor_pos);
 		
 		gtk::Inhibit(false)
 	}
@@ -414,7 +401,7 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 		gtk::Inhibit(false)
 	}
 	
-	fn handle_evt_motion(store: &mut LogStoreLinear, _drawing_area: &DrawingArea, evt: &gdk::EventMotion) -> gtk::Inhibit {
+	fn handle_evt_motion(store: &mut LogStoreLinear, drawing_area: &DrawingArea, evt: &gdk::EventMotion) -> gtk::Inhibit {
 		if store.thumb_drag {
 			store.scroll_bar.thumb_y = evt.get_position().1 - store.thumb_drag_y;
 			store.scroll_bar.thumb_rel_offset = store.scroll_bar.thumb_y - store.scroll_bar.y;
@@ -424,9 +411,9 @@ fn draw(store: &mut LogStoreLinear, drawing_area: &DrawingArea, ctx: &cairo::Con
 			} else if store.scroll_bar.scroll_perc > 1.0 {
 				store.scroll_bar.scroll_perc = 1.0;
 			}
-			store.cursor_pos = (store.scroll_bar.scroll_perc * (store.store.len() - store.visible_lines) as f64) as usize;
+			store.cursor_pos = store.percentage_to_offset(store.scroll_bar.scroll_perc, store.visible_lines).unwrap_or(0);
 			println!("MOTION {:?}", evt.get_position());
-			_drawing_area.queue_draw();
+			drawing_area.queue_draw();
 		}
 		gtk::Inhibit(false)
 	}
@@ -493,6 +480,10 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 	let store = LogStoreLinear {
 		store : Vec::<LogEntryExt>::new(),
+		entry_count : 0,
+		first_offset : 0,
+		last_offset : 0,
+	
 		cursor_pos : 0,
 		visible_lines : 0,
 		mouse_down : false,

@@ -26,7 +26,11 @@ pub struct ScrollBarVert {
 
 pub struct LogStoreLinear {
 	pub store : Vec::<LogEntryExt>,
-	pub visible_lines : usize,
+	pub entry_count : usize, //entry_count <= store.len(), number of active items
+	pub first_offset : usize,
+	pub last_offset : usize,
+	
+	pub visible_lines : usize, //visible entries in GUI
 	pub cursor_pos : usize,
 	pub mouse_down : bool,
 	pub thumb_drag : bool,
@@ -38,6 +42,9 @@ pub struct LogStoreLinear {
 impl LogStoreLinear {
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
 	pub fn filter_store(&mut self, filter : &Fn(&LogEntryExt) -> bool, active: bool) {
+		//Note: The code in this function must be fast. It is critical GUI code.
+		//If this code is slow, then the user will have noticeable GUI lag.
+		
 		let mut next_entry_id = 0;
 		
 		let mut dummy = LogEntryExt {
@@ -46,28 +53,102 @@ impl LogStoreLinear {
 			message: "Foo".to_string(),
 			source_id: 0,
 			visible: false,
-			entry_id : 0, //First element points to itself (0), dummy is later discarded
-			prev_id : 0,
-			next_id : 0,
+			entry_id : 0,
+			prev_offset : 0,
+			next_offset : 0,
 		};
-		let mut prev = &mut dummy;
-		for entry in self.store.iter_mut() {
-			if filter(entry) {
-				entry.visible = active;
+		
+		{
+			let mut offset = 0;
+			let mut prev = &mut dummy;
+			let mut prev_offset = 0;
+			for entry in self.store.iter_mut() {
+				if filter(entry) {
+					entry.visible = active;
+				}
+				if entry.visible {
+					entry.entry_id = next_entry_id;
+					next_entry_id += 1;
+					
+					prev.next_offset = offset;
+					entry.prev_offset = prev_offset;
+					
+					prev_offset = offset;
+					prev = entry;
+				}
+				offset += 1;
 			}
-			if entry.visible {
-				entry.entry_id = next_entry_id;
-				next_entry_id += 1;
-				
-				prev.next_id = entry.entry_id;
-				entry.prev_id = prev.entry_id;
-			}
-			prev = entry;
+			
+			//Prev is the last element now:
+			self.last_offset = prev_offset as usize; 
+			prev.next_offset = prev_offset; //Last element points to itself
 		}
 		
-		prev.next_id = prev.entry_id; //Last element points to itself
+		self.entry_count = next_entry_id as usize; //Conveniently, we can use this as number of elements
+		self.first_offset = dummy.next_offset as usize; //The element after the dummy is the first real element
+		if self.store.len() > 0 {
+			self.store[self.first_offset].prev_offset = self.first_offset as u32; //First element points to itself
+		}
 		
-		//next_entry_id == total number of visible entries
+		self.cursor_pos = self.first_offset; //reset cursor pos. TODO: Implement smart logic here to not reset it every time.
+	}
+	
+	pub fn percentage_to_offset(& self, perc : f64, window_size : usize) -> Option<usize> {
+		if perc < 0.0 || perc > 1.0 {
+			return None;
+		}
+		if window_size == 0 {
+			return None;
+		}
+		if self.entry_count == 0 {
+			return None;
+		}
+		if window_size >= self.entry_count {
+			return Some(0);
+		}
+		return Some(((self.entry_count - window_size) as f64 * perc) as usize);
+	}
+	
+	//Returns false if nothing happened, returns true if cursor changed
+	pub fn scroll(&mut self, lines: i64, window_size : usize) -> bool {
+		if self.entry_count == 0 {
+			return false; //Early exit to prevent getting nonexistent vec elements!
+		}
+		let cursor_pos_old = self.cursor_pos;
+		let mut abs_lines = lines.abs();
+		if lines < 0 {
+			while abs_lines > 0 {
+				println!("up");
+				let new_offset = self.store[self.cursor_pos].prev_offset as usize;
+				if self.cursor_pos == new_offset {
+					println!("up brk");
+					break; //reached end of list
+				}
+				self.cursor_pos = new_offset;
+				abs_lines -= 1;
+			}
+		} else {
+			if self.entry_count <= window_size {
+				return false; //no scrolling down if window larger than number of rows
+			}
+			while abs_lines > 0 {
+				println!("down");
+				if (self.entry_count - window_size) <= self.store[self.cursor_pos].entry_id as usize{
+					break; //stop scrolling down, bottomed out window
+				}
+				
+				let new_offset = self.store[self.cursor_pos].next_offset as usize;
+				if self.cursor_pos == new_offset {
+					println!("down brk");
+					break; //reached end of list
+				}
+				
+				self.cursor_pos = new_offset;
+				abs_lines -= 1;
+			}
+		}
+		
+		return (cursor_pos_old != self.cursor_pos);
 	}
 }
 
