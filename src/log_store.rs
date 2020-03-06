@@ -59,10 +59,9 @@ impl LogStoreLinear {
 		};
 		
 		{
-			let mut offset = 0;
 			let mut prev = &mut dummy;
 			let mut prev_offset = 0;
-			for entry in self.store.iter_mut() {
+			for (offset, entry) in self.store.iter_mut().enumerate() {
 				if filter(entry) {
 					entry.visible = active;
 				}
@@ -70,13 +69,12 @@ impl LogStoreLinear {
 					entry.entry_id = next_entry_id;
 					next_entry_id += 1;
 					
-					prev.next_offset = offset;
+					prev.next_offset = offset as u32;
 					entry.prev_offset = prev_offset;
 					
-					prev_offset = offset;
+					prev_offset = offset as u32;
 					prev = entry;
 				}
-				offset += 1;
 			}
 			
 			//Prev is the last element now:
