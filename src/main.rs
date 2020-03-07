@@ -200,7 +200,7 @@ fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
 	*/
 	
 	let now = SystemTime::now();
-	store.filter_store(&|entry: &LogEntryExt| { entry.source_id >= first_id && entry.source_id <= last_id }, active);
+	store.filter_store(&|entry: &LogEntryExt| { entry.source_id >= first_id && entry.source_id <= last_id }, active, crate::model_internal::VISIBLE_OFF_SOURCE);
 	match now.elapsed() {
 		Ok(elapsed) => {
 			println!("Time to update store: {}ms", elapsed.as_secs()*1000+elapsed.subsec_millis() as u64);
@@ -688,7 +688,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
 	
 	store_rc.borrow_mut().store.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-	store_rc.borrow_mut().filter_store(&|_entry: &LogEntryExt| { true }, true); //set all to active, initialize ids
+	store_rc.borrow_mut().filter_store(&|_entry: &LogEntryExt| { true }, true, crate::model_internal::VISIBLE_OFF_SOURCE); //set all to active, initialize ids
 	
 	match now.elapsed() {
 		Ok(elapsed) => {

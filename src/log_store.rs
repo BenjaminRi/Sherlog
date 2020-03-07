@@ -41,7 +41,7 @@ pub struct LogStoreLinear {
 
 impl LogStoreLinear {
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
-	pub fn filter_store(&mut self, filter : &dyn Fn(&LogEntryExt) -> bool, active: bool) {
+	pub fn filter_store(&mut self, filter : &dyn Fn(&LogEntryExt) -> bool, active: bool, mask: u8) {
 		//Note: The code in this function must be fast. It is critical GUI code.
 		//If this code is slow, then the user will have noticeable GUI lag.
 		
@@ -52,7 +52,7 @@ impl LogStoreLinear {
 			severity: model::LogLevel::Error,
 			message: "Foo".to_string(),
 			source_id: 0,
-			visible: false,
+			visible: crate::model_internal::VISIBLE_ON,
 			entry_id : 0,
 			prev_offset : 0,
 			next_offset : 0,
@@ -63,9 +63,13 @@ impl LogStoreLinear {
 			let mut prev_offset = 0;
 			for (offset, entry) in self.store.iter_mut().enumerate() {
 				if filter(entry) {
-					entry.visible = active;
+					if active {
+						entry.visible &= !mask; //remove mask to show entry
+					} else {
+						entry.visible |= mask; //apply mask
+					}
 				}
-				if entry.visible {
+				if entry.is_visible() {
 					entry.entry_id = next_entry_id;
 					next_entry_id += 1;
 					

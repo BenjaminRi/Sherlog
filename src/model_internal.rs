@@ -4,12 +4,17 @@ use chrono::prelude::*;
 
 use crate::model;
 
+pub const VISIBLE_ON: u8 = 0x0;
+pub const VISIBLE_OFF_SOURCE: u8 = 0x1;
+pub const VISIBLE_OFF_SEVERITY: u8 = 0x2;
+pub const VISIBLE_OFF_FILTER: u8 = 0x4;
+
 pub struct LogEntryExt {
 	pub timestamp : chrono::DateTime<Utc>,
 	pub severity : model::LogLevel,
 	pub message : String,
 	pub source_id : u32,
-	pub visible : bool,
+	pub visible : u8,
 	pub entry_id : u32,
 	pub prev_offset : u32,
 	pub next_offset : u32,
@@ -19,7 +24,7 @@ pub struct LogEntryExt {
 
 impl LogEntryExt {
 	pub fn is_visible(& self) -> bool {
-		self.visible
+		self.visible == VISIBLE_ON
 	}
 }
 
@@ -56,7 +61,7 @@ impl LogSourceExt {
 							severity: entry.severity,
 							message: entry.message,
 							source_id: 0,
-							visible: true,
+							visible: VISIBLE_ON,
 							entry_id : 0,
 							prev_offset : 0,
 							next_offset : 0,
