@@ -1,6 +1,6 @@
-extern crate gtk_sys;
-extern crate gtk;
 extern crate gobject_sys as gobject;
+extern crate gtk;
+extern crate gtk_sys;
 
 /*
 // https://raw.githubusercontent.com/gtk-rs/sys/master/gtk-sys/src/lib.rs
