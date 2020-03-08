@@ -913,6 +913,47 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 	}
+	
+	fn search_changed(
+		w: &gtk::SearchEntry,
+		store: &mut LogStoreLinear,
+		drawing_area: &gtk::DrawingArea,
+		) {
+		let search_text = w.get_text().unwrap().as_str().to_string();
+		if search_text == "" {
+			println!("Search empty");
+			store.filter_store(
+				&|_entry: &LogEntryExt| true,
+				true,
+				crate::model_internal::VISIBLE_OFF_FILTER,
+			);
+		} else {
+			println!("search_changed {}", &search_text);
+			store.filter_store(
+				&|entry: &LogEntryExt| entry.message.contains(&search_text),
+				true,
+				crate::model_internal::VISIBLE_OFF_FILTER,
+			);
+			store.filter_store(
+				&|entry: &LogEntryExt| !entry.message.contains(&search_text),
+				false,
+				crate::model_internal::VISIBLE_OFF_FILTER,
+			);
+		}
+		drawing_area.queue_draw();
+	}
+	
+	let search_entry = gtk::SearchEntry::new();
+	let store_rc_clone = store_rc.clone();
+	let drawing_area_clone = drawing_area.clone();
+	search_entry.connect_search_changed(move |w| {
+		search_changed(
+			w,
+			&mut store_rc_clone.clone().borrow_mut(),
+			&drawing_area_clone);
+	});
+	
+	split_pane_left.pack_start(&search_entry, false, false, 0);
 
 	split_pane.pack_start(&split_pane_left, false, false, 0);
 
