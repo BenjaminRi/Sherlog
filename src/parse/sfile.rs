@@ -4,6 +4,8 @@ use super::super::model;
 use super::glog;
 use std::mem;
 
+static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
+
 pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io::Error> {
 	let file = std::fs::File::open(&path).unwrap();
 	let mut archive = zip::ZipArchive::new(file).unwrap();
@@ -13,8 +15,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	let mut child_sources = Vec::new();
 	child_sources.reserve(archive.len());
 	for i in 0..archive.len() {
-		let password: Option<&'static str> = option_env!("SFILE_PASSWORD");
-		let file = if let Some(password) = password {
+		let file = if let Some(password) = SFILE_PASSWORD {
 			archive.by_index_decrypt(i, password.as_bytes()).unwrap()
 		} else {
 			archive.by_index(i).unwrap()
@@ -110,8 +111,12 @@ impl<'a, R: std::io::Read + std::io::Seek> std::io::Read for ConcatZipReader<'a,
 			} else {
 				match self.indices.pop_front() {
 					Some(idx) => {
-						//need to open new file
-						let f = self.archive.by_index(idx)?;
+						//Need to open new file
+						let f = if let Some(password) = SFILE_PASSWORD {
+							self.archive.by_index_decrypt(idx, password.as_bytes())?
+						} else {
+							self.archive.by_index(idx)?
+						};
 						unsafe {
 							//Due to the fact that file references archive and both are in the same struct,
 							//this cannot be done in safe Rust
