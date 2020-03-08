@@ -29,6 +29,13 @@ pub struct LogStoreLinear {
 	pub entry_count: usize, //entry_count <= store.len(), number of active items
 	pub first_offset: usize,
 	pub last_offset: usize,
+	
+	pub show_crit: bool,
+	pub show_err: bool,
+	pub show_warn: bool,
+	pub show_info: bool,
+	pub show_dbg: bool,
+	pub show_trace: bool,
 
 	pub visible_lines: usize, //visible entries in GUI
 	pub cursor_pos: usize,

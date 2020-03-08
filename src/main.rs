@@ -626,6 +626,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		entry_count: 0,
 		first_offset: 0,
 		last_offset: 0,
+		
+		show_crit: true,
+		show_err: true,
+		show_warn: true,
+		show_info: true,
+		show_dbg: true,
+		show_trace: true,
 
 		cursor_pos: 0,
 		visible_lines: 0,
@@ -803,25 +810,107 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	scrolled_window_left.add(&sources_tree_view);
 
 	let split_pane_left = gtk::Box::new(Orientation::Vertical, 10);
+	
+	fn severity_toggle(
+		w: &gtk::CheckButton,
+		store: &mut LogStoreLinear,
+		severity: model::LogLevel,
+		drawing_area: &gtk::DrawingArea,
+		) {
+		println!("Active: {} ({:?})", w.get_active(), severity);
+		store.filter_store(
+			&|entry: &LogEntryExt| entry.severity == severity,
+			w.get_active(),
+			crate::model_internal::VISIBLE_OFF_SEVERITY,
+		);
+		drawing_area.queue_draw();
+	}
+	
 	split_pane_left.pack_start(&scrolled_window_left, true, true, 0);
 	{
 		let check_btn = gtk::CheckButton::new_with_label("Critical");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Critical,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Error");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Error,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Warning");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Warning,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Info");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Info,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Debug");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Debug,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Trace");
 		check_btn.set_active(true);
+		
+		let store_rc_clone = store_rc.clone();
+		let drawing_area_clone = drawing_area.clone();
+		check_btn.connect_clicked(move |w| {
+			severity_toggle(
+				w,
+				&mut store_rc_clone.clone().borrow_mut(),
+				model::LogLevel::Trace,
+				&drawing_area_clone);
+		});
+		
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 	}
 
