@@ -13,7 +13,12 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	let mut child_sources = Vec::new();
 	child_sources.reserve(archive.len());
 	for i in 0..archive.len() {
-		let file = archive.by_index_decrypt(i, "test".as_bytes()).unwrap();
+		let password: Option<&'static str> = option_env!("SFILE_PASSWORD");
+		let file = if let Some(password) = password {
+			archive.by_index_decrypt(i, password.as_bytes()).unwrap()
+		} else {
+			archive.by_index(i).unwrap()
+		};
 		let outpath = file.sanitized_name();
 		let stem = outpath.file_stem().unwrap();
 		let stem = stem.to_string_lossy();
