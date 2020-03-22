@@ -149,6 +149,10 @@ Section "Sherlog" Sherlog
 	File /r "C:\msys64\mingw64\share\icons\Adwaita\"
 	SetOutPath "$INSTDIR\share\icons\hicolor\"
 	File /r "C:\msys64\mingw64\share\icons\hicolor\"
+	SetOutPath "$INSTDIR\bin"
+	File "..\target\release\sherlog.exe"
+	CreateShortCut "$DESKTOP\Sherlog.lnk" "$INSTDIR\bin\sherlog.exe"
+	
 	
 	WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
@@ -158,6 +162,8 @@ SectionEnd
 Section "Uninstall"
 	Delete "$INSTDIR\Uninstall.exe"
 	
+	Delete "$DESKTOP\Sherlog.lnk"
+	Delete "$INSTDIR\bin\sherlog.exe"
 	RMDir /r "$INSTDIR\share\icons\hicolor\"
 	RMDir /r "$INSTDIR\share\icons\Adwaita\"
 	!insertmacro FILES Delete "$INSTDIR"
