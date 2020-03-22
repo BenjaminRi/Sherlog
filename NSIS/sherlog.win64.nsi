@@ -169,5 +169,6 @@ Section "Uninstall"
 	!insertmacro FILES Delete "$INSTDIR"
 	!insertmacro DIRECTORIES RMDir "$INSTDIR"
 	
+	SetOutPath "$DESKTOP" ;free outpath so $INSTDIR can be deleted
 	RMDir "$INSTDIR"
 SectionEnd
