@@ -1,0 +1,13 @@
+EULA (end-user license agreement)
+
+The entity operating this software, henceforth described as "user", agrees to have read and understood the following terms and conditions:
+
+1. The user agrees with all the conditions.
+2. The user agrees with the following condition.
+3. The user agrees with at least two and disagrees with at least one of the conditions below.
+4. The user agrees with all the conditions that have an odd-numbered label.
+5. The user feels the same about agreeing with this condition and condition number seven.
+6. These terms and conditions are self-contradictory.
+7. The user disagrees with at least three conditions.
+
+By pressing the button to continue the installation, the user confirms knowing which conditions to agree with.
