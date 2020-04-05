@@ -15,9 +15,9 @@ pub struct LogEntryExt {
 	pub message: String,
 	pub source_id: u32,
 	pub visible: u8,
-	pub entry_id: u32,
-	pub prev_offset: u32,
-	pub next_offset: u32,
+	pub entry_id: u32, //id (NOT offset) of entry, only active elements have id
+	pub prev_offset: u32, //offset of next active element in LogStoreLinear vec
+	pub next_offset: u32, //offset of previous active element in LogStoreLinear vec
 	//For 1 million objects, 3 uint32 require 20ms more to sort.
 	//Therefore, stick to uint32 and not usize which doubles this amount
 }

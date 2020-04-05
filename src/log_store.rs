@@ -27,8 +27,8 @@ pub struct ScrollBarVert {
 pub struct LogStoreLinear {
 	pub store: Vec<LogEntryExt>,
 	pub entry_count: usize, //entry_count <= store.len(), number of active items
-	pub first_offset: usize,
-	pub last_offset: usize,
+	pub first_offset: usize, //first_offset < store.len(), offset of first active element in vec
+	pub last_offset: usize, //last_offset < store.len(), offset of last active element in vec
 	
 	pub show_crit: bool,
 	pub show_err: bool,
