@@ -272,7 +272,8 @@ fn draw(
 
 	ctx.set_source_rgb(0.0, 0.0, 0.0);
 
-	store.visible_lines = (h / 25) as usize;
+	store.line_spacing = f64::max(store.line_spacing, store.font_size + 2.0); //prevent overlapping lines with large font
+	store.visible_lines = (f64::max(0.0, (h as f64) - store.border_top - store.border_bottom) / store.line_spacing) as usize;
 
 	if store.store.len() < store.visible_lines {
 		//No scrolling possible, less entries than rows on GUI!
@@ -281,20 +282,36 @@ fn draw(
 		store.cursor_pos = store.store.len() - store.visible_lines;
 	}
 	
-	for (i, entry) in store
+	//-----------------------------------------------------------------------------
+	//Draw loop
+	//-----------------------------------------------------------------------------
+	for (i, (_offset, entry)) in store
 		.store
 		.iter()
+		.enumerate() //offset in vector
 		.skip(store.cursor_pos)
-		.filter(|x| x.is_visible())
+		.filter(|(_, x)| x.is_visible())
 		.take(store.visible_lines)
-		.enumerate()
+		.enumerate() //index of filtered element
+		
 	{
 		ctx.select_font_face(
 			"Lucida Console",
 			cairo::FontSlant::Normal,
 			cairo::FontWeight::Normal,
 		);
-		ctx.set_font_size(14.0);
+		ctx.set_font_size(store.font_size);
+		
+		ctx.set_source_rgb(0.8, 0.8, 0.8);
+		if Some(i) == store.hover_line {
+			ctx.rectangle(
+				0.0,
+				store.border_top + store.line_spacing * i as f64,
+				w as f64,
+				store.line_spacing,
+			);
+			ctx.fill();
+		}
 
 		match entry.severity {
 			model::LogLevel::Critical => {
@@ -316,13 +333,14 @@ fn draw(
 				ctx.set_source_rgb(0.4, 0.4, 0.4);
 			} //Light grey
 		}
-
-		if !entry.is_visible() {
-			ctx.set_source_rgb(0.9, 0.9, 0.9);
-		}
+		
+		let offset_y = store.border_top + store.line_spacing * i as f64 + f64::max(0.0, store.line_spacing - store.font_size)/2.0;
+		//Anchor point of text is bottom left, excluding descent.
+		//We want to anchor on top left though, so calculate that away:
+		let font_offset_y = offset_y + store.font_size - ctx.font_extents().descent;
 
 		let date_str = entry.timestamp.format("%y-%m-%d %T%.3f").to_string();
-		ctx.move_to(30.0, 20.0 + 20.0 * i as f64);
+		ctx.move_to(store.border_left, font_offset_y);
 		ctx.show_text(&date_str);
 
 		let short_sev = match entry.severity {
@@ -334,10 +352,10 @@ fn draw(
 			model::LogLevel::Trace => "TRC",
 		};
 
-		ctx.move_to(210.0, 20.0 + 20.0 * i as f64);
+		ctx.move_to(store.border_left + 180.0, font_offset_y);
 		ctx.show_text(&short_sev);
 
-		ctx.move_to(240.0, 20.0 + 20.0 * i as f64);
+		ctx.move_to(store.border_left + 210.0, font_offset_y);
 
 		/*let font_face = ctx.get_font_face();
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
@@ -464,6 +482,7 @@ fn handle_evt_press(
 		store.thumb_drag = true;
 		store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
 		store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
+		store.hover_line = None;
 	}
 	gtk::Inhibit(false)
 }
@@ -504,7 +523,28 @@ fn handle_evt_motion(
 			.unwrap_or(0);
 		println!("MOTION {:?}", evt.get_position());
 		drawing_area.queue_draw();
+	} else {	
+		let current_hover = {
+			if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
+				None
+			} else {
+				let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+				if line >= store.visible_lines {
+					None
+				}
+				else {
+					Some(line)
+				}
+			}
+		};
+		
+		if current_hover != store.hover_line {
+			println!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
+			store.hover_line = current_hover;
+			drawing_area.queue_draw();
+		}
 	}
+	
 	gtk::Inhibit(false)
 }
 
@@ -634,13 +674,21 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		show_info: true,
 		show_dbg: true,
 		show_trace: true,
-
-		cursor_pos: 0,
+		
 		visible_lines: 0,
+		hover_line: None,
+		cursor_pos: 0,
 		mouse_down: false,
 		thumb_drag: false,
 		thumb_drag_x: 0.0,
 		thumb_drag_y: 0.0,
+			
+		border_left: 30.0,
+		border_top: 10.0,
+		border_bottom: 10.0,
+		line_spacing: 20.0,
+		font_size: 14.0,
+		
 		scroll_bar: ScrollBarVert {
 			x: 0.0,
 			y: 0.0,

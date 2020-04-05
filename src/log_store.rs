@@ -38,12 +38,19 @@ pub struct LogStoreLinear {
 	pub show_trace: bool,
 
 	pub visible_lines: usize, //visible entries in GUI
+	pub hover_line: Option<usize>, //line the mouse cursor hovers over, relative to cursor_pos
 	pub cursor_pos: usize,
 	pub mouse_down: bool,
 	pub thumb_drag: bool,
 	pub thumb_drag_x: f64,
 	pub thumb_drag_y: f64,
 	pub scroll_bar: ScrollBarVert,
+	
+	pub border_left: f64,
+	pub border_top: f64,
+	pub border_bottom: f64,
+	pub line_spacing: f64,
+	pub font_size: f64,
 }
 
 impl LogStoreLinear {
