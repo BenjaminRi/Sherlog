@@ -37,7 +37,7 @@ pub struct LogStoreLinear {
 	pub show_dbg: bool,
 	pub show_trace: bool,
 
-	pub visible_lines: usize, //visible entries in GUI
+	pub visible_lines: usize, //visible entries in GUI (i.e. number of rows your text viewport has)
 	pub hover_line: Option<usize>, //line the mouse cursor hovers over, relative to cursor_pos
 	pub cursor_pos: usize,
 	pub mouse_down: bool,

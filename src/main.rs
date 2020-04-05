@@ -296,7 +296,7 @@ fn draw(
 		
 	{
 		ctx.select_font_face(
-			"Lucida Console",
+			"Lucida Console", //"Calibri"
 			cairo::FontSlant::Normal,
 			cairo::FontWeight::Normal,
 		);
@@ -354,6 +354,9 @@ fn draw(
 
 		ctx.move_to(store.border_left + 180.0, font_offset_y);
 		ctx.show_text(&short_sev);
+		
+		/*ctx.move_to(store.border_left - 20.0, font_offset_y);
+		ctx.show_text(&"→");//TODO: Replace with anchor symbol*/
 
 		ctx.move_to(store.border_left + 210.0, font_offset_y);
 
