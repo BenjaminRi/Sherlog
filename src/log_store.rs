@@ -173,7 +173,7 @@ impl LogStoreLinear {
 			//First element points to itself
 		}
 		
-		if self.store[anchor_offset].is_visible() {
+		if self.store.len() > 0 && self.store[anchor_offset].is_visible() {
 			self.viewport_offset = anchor_offset;
 			self.scroll(-(rel_offset as i64), self.visible_lines);
 		} else {
