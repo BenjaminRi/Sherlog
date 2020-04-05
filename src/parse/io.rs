@@ -12,7 +12,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			"glog" => {
 				let file = File::open(&path)?;
 				let root = model::LogSource {
-					name: "example2_1".to_string(),
+					name: path.file_name().unwrap().to_string_lossy().to_string(),
 					children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 				};
 				Ok(glog::to_log_entries(file, root))

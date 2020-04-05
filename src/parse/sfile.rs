@@ -27,7 +27,6 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		println!("File contained: {}", &stem);
 		if let Some(extension) = outpath.extension() {
 			match extension.to_string_lossy().as_ref() {
-				// ../logfiles/example.glog
 				"glog" => {
 					let mut s = stem.to_string();
 					strip_suffix(&mut s);
@@ -70,7 +69,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	}
 
 	Ok(model::LogSource {
-		name: "example2_1".to_string(),
+		name: path.file_name().unwrap().to_string_lossy().to_string(),
 		children: { model::LogSourceContents::Sources(child_sources) },
 	})
 }
