@@ -29,6 +29,7 @@ pub struct LogStoreLinear {
 	pub entry_count: usize, //entry_count <= store.len(), number of active items
 	pub first_offset: usize, //first_offset < store.len(), offset of first active element in vec
 	pub last_offset: usize, //last_offset < store.len(), offset of last active element in vec
+	pub anchor_offset: Option<usize>, //anchor_offset < store.len(), offset of anchor element that aligns GUI on visibility changes
 	
 	pub show_crit: bool,
 	pub show_err: bool,
@@ -54,10 +55,72 @@ pub struct LogStoreLinear {
 }
 
 impl LogStoreLinear {
+	pub fn rel_to_abs_offset(&self, rel_offset: usize) -> Option<usize> {
+		for (offset, _) in self
+			.store
+			.iter()
+			.enumerate() //offset in vector
+			.skip(self.viewport_offset)
+			.filter(|(_, x)| x.is_visible())
+			.skip(rel_offset)
+			.take(1)
+		{
+			return Some(offset);
+		}
+		return None;
+	}
+	
+	pub fn abs_to_rel_offset(&self, abs_offset: usize) -> Option<usize> {
+		for (i, (offset, _)) in self
+			.store
+			.iter()
+			.enumerate() //offset in vector
+			.skip(self.viewport_offset)
+			.filter(|(_, x)| x.is_visible())
+			.take(self.visible_lines)
+			.enumerate() //index of filtered element
+		{
+			if offset == abs_offset {
+				return Some(i);
+			}
+		}
+		return None;
+	}
+
+
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
 	pub fn filter_store(&mut self, filter: &dyn Fn(&LogEntryExt) -> bool, active: bool, mask: u8) {
 		//Note: The code in this function must be fast. It is critical GUI code.
 		//If this code is slow, then the user will have noticeable GUI lag.
+		
+		let (anchor_offset, rel_offset) = {
+			if let Some(offset) = self.anchor_offset {
+				if let Some(rel_offset) = self.abs_to_rel_offset(offset) {
+					(offset, rel_offset)
+				} else {
+					//Not in viewport, align to the middle of the screen
+					(offset, (std::cmp::max(1, self.visible_lines)-1)/2)
+				}
+			} else if self.store.len() >= self.visible_lines {
+				//No anchor; just center on message in the middle of the screen
+				let mut abs_offset = 0;
+				let mut rel_offset = (std::cmp::max(1, self.visible_lines)-1)/2;
+				loop {
+					if let Some(abs_offset_result) = self.rel_to_abs_offset(rel_offset) {
+						abs_offset = abs_offset_result;
+						break;
+					}
+					if rel_offset == 0 {
+						break;
+					}
+					rel_offset -= 1;
+				}
+				(abs_offset, rel_offset)
+			} else {
+				//No anchor; less elements in store than viewport size; just reset to zero
+				(0, 0)
+			}
+		};
 
 		let mut next_entry_id = 0;
 
@@ -109,8 +172,29 @@ impl LogStoreLinear {
 			self.store[self.first_offset].prev_offset = self.first_offset as u32;
 			//First element points to itself
 		}
-
-		self.viewport_offset = self.first_offset; //reset viewport offset. TODO: Implement smart logic here to not reset it every time.
+		
+		if self.store[anchor_offset].is_visible() {
+			self.viewport_offset = anchor_offset;
+			self.scroll(-(rel_offset as i64), self.visible_lines);
+		} else {
+			let mut found = false;
+			for (offset, _) in self
+				.store
+				.iter()
+				.enumerate() //offset in vector
+				.skip(anchor_offset)
+				.filter(|(_, x)| x.is_visible())
+				.take(1)
+			{
+				self.viewport_offset = offset; 
+				found = true;
+			}
+			if !found {
+				self.viewport_offset = self.last_offset;
+				println!("Not found {}!!", rel_offset);
+			}
+			self.scroll(-(rel_offset as i64), self.visible_lines);
+		}
 	}
 
 	pub fn percentage_to_offset(&self, perc: f64, window_size: usize) -> Option<usize> {

@@ -285,7 +285,9 @@ fn draw(
 	//-----------------------------------------------------------------------------
 	//Draw loop
 	//-----------------------------------------------------------------------------
-	for (i, (_offset, entry)) in store
+	let mut anchor_drawn = false;
+	
+	for (i, (offset, entry)) in store
 		.store
 		.iter()
 		.enumerate() //offset in vector
@@ -355,8 +357,23 @@ fn draw(
 		ctx.move_to(store.border_left + 180.0, font_offset_y);
 		ctx.show_text(&short_sev);
 		
-		/*ctx.move_to(store.border_left - 20.0, font_offset_y);
-		ctx.show_text(&"→");//TODO: Replace with anchor symbol*/
+		if let Some(anchor_offset) = store.anchor_offset {
+			if offset == anchor_offset {
+				ctx.move_to(store.border_left - 20.0, font_offset_y);
+				ctx.show_text(&"→");//TODO: Replace with anchor symbol
+				anchor_drawn = true;
+			} else if !anchor_drawn {
+				if offset >= anchor_offset {
+					ctx.move_to(store.border_left - 20.0, font_offset_y - store.line_spacing/2.0);
+					ctx.show_text(&"→");//TODO: Replace with anchor symbol
+					anchor_drawn = true;
+				} else if i == store.visible_lines-1 || offset == store.last_offset {
+					ctx.move_to(store.border_left - 20.0, font_offset_y + store.line_spacing/2.0);
+					ctx.show_text(&"→");//TODO: Replace with anchor symbol
+					anchor_drawn = true;
+				}
+			}
+		}
 
 		ctx.move_to(store.border_left + 210.0, font_offset_y);
 
@@ -461,18 +478,9 @@ fn handle_evt_scroll(
 
 fn handle_evt_press(
 	store: &mut LogStoreLinear,
-	_drawing_area: &DrawingArea,
+	drawing_area: &DrawingArea,
 	evt: &gdk::EventButton,
 ) -> gtk::Inhibit {
-	/*let h = _drawing_area.get_allocated_height();
-	let mut scroll_perc = evt.get_position().1/h as f64;
-	if scroll_perc < 0.0 {
-		scroll_perc = 0.0;
-	} else if scroll_perc > 1.0 {
-		scroll_perc = 1.0;
-	}
-	store.viewport_offset = f64::round(scroll_perc * (store.store.len() - 1) as f64) as usize;
-	_drawing_area.queue_draw();*/
 	//println!("PRESS pos:  {:?}", evt.get_position());
 	//println!("PRESS root: {:?}", evt.get_root());
 
@@ -486,7 +494,20 @@ fn handle_evt_press(
 		store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
 		store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
 		store.hover_line = None;
+	} else {	
+		if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
+		} else {
+			let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+			if line >= store.visible_lines {
+			}
+			else {
+				store.anchor_offset = store.rel_to_abs_offset(line);
+				println!("SET anchor: {:?}", store.anchor_offset);
+				drawing_area.queue_draw();
+			}
+		}
 	}
+	
 	gtk::Inhibit(false)
 }
 
@@ -670,6 +691,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		entry_count: 0,
 		first_offset: 0,
 		last_offset: 0,
+		anchor_offset: None,
 		
 		show_crit: true,
 		show_err: true,
