@@ -38,8 +38,8 @@ pub struct LogStoreLinear {
 	pub show_trace: bool,
 
 	pub visible_lines: usize, //visible entries in GUI (i.e. number of rows your text viewport has)
-	pub hover_line: Option<usize>, //line the mouse cursor hovers over, relative to cursor_pos
-	pub cursor_pos: usize,
+	pub hover_line: Option<usize>, //line the mouse cursor hovers over, relative to viewport_offset
+	pub viewport_offset: usize, //viewport_offset < store.len(), offset of GUI viewport
 	pub mouse_down: bool,
 	pub thumb_drag: bool,
 	pub thumb_drag_x: f64,
@@ -110,7 +110,7 @@ impl LogStoreLinear {
 			//First element points to itself
 		}
 
-		self.cursor_pos = self.first_offset; //reset cursor pos. TODO: Implement smart logic here to not reset it every time.
+		self.viewport_offset = self.first_offset; //reset viewport offset. TODO: Implement smart logic here to not reset it every time.
 	}
 
 	pub fn percentage_to_offset(&self, perc: f64, window_size: usize) -> Option<usize> {
@@ -146,7 +146,7 @@ impl LogStoreLinear {
 		if self.entry_count <= window_size {
 			return 0.0; //Early exit to prevent division by 0, negative percentage
 		}
-		let percentage = (self.store[self.cursor_pos].entry_id as f64)
+		let percentage = (self.store[self.viewport_offset].entry_id as f64)
 			/ ((self.entry_count - window_size) as f64);
 		if percentage > 1.0 {
 			return 1.0; //clamp down if scrolled too far or window too large
@@ -154,20 +154,20 @@ impl LogStoreLinear {
 		return percentage;
 	}
 
-	//Returns false if nothing happened, returns true if cursor changed
+	//Returns false if nothing happened, returns true if viewport offset changed
 	pub fn scroll(&mut self, lines: i64, window_size: usize) -> bool {
 		if self.entry_count == 0 {
 			return false; //Early exit to prevent getting nonexistent vec elements!
 		}
-		let cursor_pos_old = self.cursor_pos;
+		let viewport_offset_old = self.viewport_offset;
 		let mut abs_lines = lines.abs();
 		if lines < 0 {
 			while abs_lines > 0 {
-				let new_offset = self.store[self.cursor_pos].prev_offset as usize;
-				if self.cursor_pos == new_offset {
+				let new_offset = self.store[self.viewport_offset].prev_offset as usize;
+				if self.viewport_offset == new_offset {
 					break; //reached end of list
 				}
-				self.cursor_pos = new_offset;
+				self.viewport_offset = new_offset;
 				abs_lines -= 1;
 			}
 		} else {
@@ -175,21 +175,21 @@ impl LogStoreLinear {
 				return false; //no scrolling down if window larger than number of rows
 			}
 			while abs_lines > 0 {
-				if (self.entry_count - window_size) <= self.store[self.cursor_pos].entry_id as usize
+				if (self.entry_count - window_size) <= self.store[self.viewport_offset].entry_id as usize
 				{
 					break; //stop scrolling down, bottomed out window
 				}
 
-				let new_offset = self.store[self.cursor_pos].next_offset as usize;
-				if self.cursor_pos == new_offset {
+				let new_offset = self.store[self.viewport_offset].next_offset as usize;
+				if self.viewport_offset == new_offset {
 					break; //reached end of list
 				}
 
-				self.cursor_pos = new_offset;
+				self.viewport_offset = new_offset;
 				abs_lines -= 1;
 			}
 		}
 
-		return cursor_pos_old != self.cursor_pos;
+		return viewport_offset_old != self.viewport_offset;
 	}
 }

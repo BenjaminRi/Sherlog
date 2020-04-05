@@ -277,9 +277,9 @@ fn draw(
 
 	if store.store.len() < store.visible_lines {
 		//No scrolling possible, less entries than rows on GUI!
-		store.cursor_pos = 0;
-	} else if store.cursor_pos > store.store.len() - store.visible_lines {
-		store.cursor_pos = store.store.len() - store.visible_lines;
+		store.viewport_offset = 0;
+	} else if store.viewport_offset > store.store.len() - store.visible_lines {
+		store.viewport_offset = store.store.len() - store.visible_lines;
 	}
 	
 	//-----------------------------------------------------------------------------
@@ -289,7 +289,7 @@ fn draw(
 		.store
 		.iter()
 		.enumerate() //offset in vector
-		.skip(store.cursor_pos)
+		.skip(store.viewport_offset)
 		.filter(|(_, x)| x.is_visible())
 		.take(store.visible_lines)
 		.enumerate() //index of filtered element
@@ -454,7 +454,7 @@ fn handle_evt_scroll(
 		drawing_area.queue_draw();
 	}
 
-	println!("Scroll... dirty: {}, pos: {}", dirty, store.cursor_pos);
+	println!("Scroll... dirty: {}, pos: {}", dirty, store.viewport_offset);
 
 	gtk::Inhibit(false)
 }
@@ -471,7 +471,7 @@ fn handle_evt_press(
 	} else if scroll_perc > 1.0 {
 		scroll_perc = 1.0;
 	}
-	store.cursor_pos = f64::round(scroll_perc * (store.store.len() - 1) as f64) as usize;
+	store.viewport_offset = f64::round(scroll_perc * (store.store.len() - 1) as f64) as usize;
 	_drawing_area.queue_draw();*/
 	//println!("PRESS pos:  {:?}", evt.get_position());
 	//println!("PRESS root: {:?}", evt.get_root());
@@ -521,7 +521,7 @@ fn handle_evt_motion(
 		} else if store.scroll_bar.scroll_perc > 1.0 {
 			store.scroll_bar.scroll_perc = 1.0;
 		}
-		store.cursor_pos = store
+		store.viewport_offset = store
 			.percentage_to_offset(store.scroll_bar.scroll_perc, store.visible_lines)
 			.unwrap_or(0);
 		println!("MOTION {:?}", evt.get_position());
@@ -680,7 +680,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		
 		visible_lines: 0,
 		hover_line: None,
-		cursor_pos: 0,
+		viewport_offset: 0,
 		mouse_down: false,
 		thumb_drag: false,
 		thumb_drag_x: 0.0,
