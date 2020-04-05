@@ -1,3 +1,6 @@
+//Hide Windows cmd console on opening the application
+//#![windows_subsystem = "windows"]
+
 extern crate cairo;
 extern crate chrono;
 extern crate gdk;
@@ -277,17 +280,15 @@ fn draw(
 	} else if store.cursor_pos > store.store.len() - store.visible_lines {
 		store.cursor_pos = store.store.len() - store.visible_lines;
 	}
-
-	let mut i = 0;
-	for entry in store
+	
+	for (i, entry) in store
 		.store
 		.iter()
 		.skip(store.cursor_pos)
 		.filter(|x| x.is_visible())
 		.take(store.visible_lines)
+		.enumerate()
 	{
-		i += 1;
-
 		ctx.select_font_face(
 			"Lucida Console",
 			cairo::FontSlant::Normal,
