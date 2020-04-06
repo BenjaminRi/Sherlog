@@ -43,7 +43,6 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	let mut deque = std::collections::VecDeque::new();
 	let mut name = "".to_string();
 	for file in glog_files {
-		println!("Glog file: {:?}", file);
 		if name != file.name {
 			if !deque.is_empty() {
 				let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
@@ -54,7 +53,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				};
 				child_sources.push(glog::to_log_entries(reader, root));
 			}
+			println!("--------------------");
+			println!("Glog file: {:?}", file);
 			name = file.name;
+		} else {
+			println!("Glog file: {:?}", file);
 		}
 		deque.push_back(file.index);
 	}
