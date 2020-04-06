@@ -76,10 +76,13 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		if source.name.starts_with("contr_") {
 			contr_child_sources.push(source);
 		} else if 
+			source.name.starts_with("adm_") || //G
 			source.name.starts_with("axis_") ||
+			source.name.starts_with("laseroven_") || //G
 			source.name.starts_with("sensorbase_") ||
 			source.name.starts_with("telescope_") ||
-			source.name.starts_with("trigger_")
+			source.name.starts_with("trigger_") ||
+			source.name.starts_with("wfd_") //W
 		{
 			sensor_child_sources.push(source);
 		} else {
