@@ -51,31 +51,13 @@ enum LogSourcesColumns {
 	ChildCount = 4,
 }
 
-fn fixed_toggled_sorted<W: IsA<gtk::CellRendererToggle>>(
-	tree_store: &gtk::TreeStore,
-	model_sort: &gtk::TreeModelSort,
-	store: &mut LogStoreLinear,
-	drawing_area: &gtk::DrawingArea,
-	_w: &W,
-	path: gtk::TreePath,
-) {
-	fixed_toggled(
-		tree_store,
-		store,
-		drawing_area,
-		_w,
-		model_sort.convert_path_to_child_path(&path).unwrap(),
-	);
-}
-
-fn fixed_toggled<W: IsA<gtk::CellRendererToggle>>(
+fn toggle_row(
 	tree_store: &gtk::TreeStore,
 	store: &mut LogStoreLinear,
 	drawing_area: &gtk::DrawingArea,
-	_w: &W,
 	path: gtk::TreePath,
 ) {
-	//println!("Path: {:?}", path.get_indices_with_depth());
+	//println!("Path: {:?}", path.get_indices());
 
 	let iter = tree_store.get_iter(&path).unwrap();
 	let mut active = tree_store
@@ -788,20 +770,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
-			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
-			let drawing_area_clone = drawing_area.clone(); //GTK objects are refcounted, just clones ref
-			let store_rc_clone = store_rc.clone();
-			renderer_toggle.connect_toggled(move |w, path| {
-				fixed_toggled_sorted(
-					&left_store_clone,
-					&model_sort_clone,
-					&mut store_rc_clone.clone().borrow_mut(),
-					&drawing_area_clone,
-					w,
-					path,
-				)
-			});
 			column.pack_start(&renderer_toggle, false);
 			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
 			column.add_attribute(
@@ -817,7 +785,28 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
-		sources_tree_view.append_column(&column);
+		
+		{
+			sources_tree_view.append_column(&column);
+			sources_tree_view.set_property("activate-on-single-click", &true).unwrap();
+			//connect_row_activated<F: Fn(&Self, &TreePath, &TreeViewColumn)
+			//sources_tree_view.connect_row_activated(|tree_view, path, column| { println!("row-activated\n{:?}\n{:?}\n{:?}", tree_view, path.get_indices(), column) } ); //TODO: Hook up row-activated event
+			//https://gtk-rs.org/docs/gtk/trait.TreeViewExt.html
+			
+			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
+			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
+			let drawing_area_clone = drawing_area.clone(); //GTK objects are refcounted, just clones ref
+			let store_rc_clone = store_rc.clone();
+			sources_tree_view.connect_row_activated(move |_tree_view, path, _column| {
+				toggle_row(
+					&left_store_clone,
+					&mut store_rc_clone.clone().borrow_mut(),
+					&drawing_area_clone,
+					model_sort_clone.convert_path_to_child_path(&path).unwrap()
+				)
+			});
+			
+		}
 	}
 
 	//Column with number of entries of a log source
