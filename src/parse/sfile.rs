@@ -67,10 +67,42 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		};
 		child_sources.push(glog::to_log_entries(reader, root));
 	}
+	
+	let mut contr_child_sources = Vec::new();
+	let mut sensor_child_sources = Vec::new();
+	let mut unknown_child_sources = Vec::new();
+	
+	for source in child_sources {
+		if source.name.starts_with("contr_") {
+			contr_child_sources.push(source);
+		} else if 
+			source.name.starts_with("axis_") ||
+			source.name.starts_with("sensorbase_") ||
+			source.name.starts_with("telescope_") ||
+			source.name.starts_with("trigger_")
+		{
+			sensor_child_sources.push(source);
+		} else {
+			unknown_child_sources.push(source);
+		}
+	}
+	
+	let contr_logs = model::LogSource {
+		name: "Controller".to_string(),
+		children: { model::LogSourceContents::Sources(contr_child_sources) },
+	};
+	let sensor_logs = model::LogSource {
+		name: "Sensor".to_string(),
+		children: { model::LogSourceContents::Sources(sensor_child_sources) },
+	};
+	let unknown_logs = model::LogSource {
+		name: "Unknown".to_string(),
+		children: { model::LogSourceContents::Sources(unknown_child_sources) },
+	};
 
 	Ok(model::LogSource {
 		name: path.file_name().unwrap().to_string_lossy().to_string(),
-		children: { model::LogSourceContents::Sources(child_sources) },
+		children: { model::LogSourceContents::Sources(vec![contr_logs, sensor_logs, unknown_logs]) },
 	})
 }
 
