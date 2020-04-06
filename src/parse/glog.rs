@@ -78,9 +78,9 @@ impl GlogParser {
 							"s" => GlogSectionKind::Severity,
 							"i" => GlogSectionKind::LogSource, //controller only
 							"m" => GlogSectionKind::Message,
-							//"e" => //error code? //sensor only
-							//"n" => //session number (incremented on reboot, //sensor only
-							//"t" => //timestamp, 100ns increments? Offset? //sensor only
+							"e" => GlogSectionKind::ErrorCode, //sensor only
+							"n" => GlogSectionKind::SessionId, //sensor only
+							"t" => GlogSectionKind::Timestamp100ns, //sensor only
 							_ => {
 								//TODO: Notify of invalid kind?
 								println!("UNRECOGNIZED kind: {}", &kind_str);
@@ -184,6 +184,38 @@ impl GlogParser {
 								println!("MALFORMED UTF-8 in Message: {}", owned_str);
 							}
 							self.log_entry.message = value_str.to_string();
+						}
+						GlogSectionKind::Timestamp100ns => {
+							if let Ok(mut ts_100ns) = value_str.parse::<u64>() {
+								// 100-nanosecond offset from 0000-01-01 00:00:00.000 to 1970-01-01 00:00:00.000
+								const TIME_OFFSET: u64 = 621_355_968_000_000_000;
+								if ts_100ns >= TIME_OFFSET {
+									ts_100ns -= TIME_OFFSET;
+									let ts_sec: u64 = ts_100ns / 10_000_000;
+									let ts_nano: u32 = (ts_100ns - ts_sec * 10_000_000) as u32;
+									if let Some(ndt) =
+										NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
+									{
+										self.log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+									} else {
+										//TODO: Notify of invalid datetime?
+										println!("MALFORMED Log 100ns stamp datetime: {}", value_str);
+									}
+								} else {
+									//TODO: Notify of invalid offset?
+									println!("MALFORMED Log 100ns stamp offset: {}", ts_100ns);
+								}
+							} else {
+								//TODO: Notify of invalid time?
+								println!("MALFORMED Log 100ns stamp: {}", value_str);
+							}
+						}
+						GlogSectionKind::ErrorCode => {
+							//TODO: Expose ErrorCode to user
+						}
+						GlogSectionKind::SessionId => {
+							//TODO: Handle session ID, in particular sorting
+							//with session ID instead of timestamp
 						}
 						GlogSectionKind::Unknown => (),
 					}
@@ -342,5 +374,8 @@ enum GlogSectionKind {
 	Severity,
 	LogSource,
 	Message,
+	Timestamp100ns,
+	ErrorCode,
+	SessionId,
 	Unknown,
 }
