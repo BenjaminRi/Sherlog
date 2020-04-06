@@ -741,6 +741,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		left_store_sort.set_sort_func(
 			gtk::SortColumn::Index(LogSourcesColumns::Text as u32),
 			move |_w, l_it, r_it| {
+				//Crashes. See: https://github.com/gtk-rs/gtk/issues/960
 				let l_id = store_clone
 					.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
 					.get_some::<u64>()
