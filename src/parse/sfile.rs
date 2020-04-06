@@ -24,7 +24,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let stem = outpath.file_stem().unwrap();
 		let stem = stem.to_string_lossy();
 
-		println!("File contained: {}", &stem);
+		//println!("File contained: {}", &stem);
 		if let Some(extension) = outpath.extension() {
 			match extension.to_string_lossy().as_ref() {
 				"glog" => {
