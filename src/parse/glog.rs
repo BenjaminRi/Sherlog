@@ -74,10 +74,13 @@ impl GlogParser {
 
 					let kind = if let Ok(kind_str) = kind_str {
 						match kind_str.as_ref() {
-							"tq" => GlogSectionKind::TimestampMs,
+							"tq" => GlogSectionKind::TimestampMs, //controller only
 							"s" => GlogSectionKind::Severity,
-							"i" => GlogSectionKind::LogSource,
+							"i" => GlogSectionKind::LogSource, //controller only
 							"m" => GlogSectionKind::Message,
+							//"e" => //error code? //sensor only
+							//"n" => //session number (incremented on reboot, //sensor only
+							//"t" => //timestamp, 100ns increments? Offset? //sensor only
 							_ => {
 								//TODO: Notify of invalid kind?
 								println!("UNRECOGNIZED kind: {}", &kind_str);
@@ -141,7 +144,7 @@ impl GlogParser {
 						GlogSectionKind::TimestampMs => {
 							if let Ok(ts_milli) = value_str.parse::<u64>() {
 								let ts_sec: u64 = ts_milli / 1000;
-								let ts_nano: u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
+								let ts_nano: u32 = ((ts_milli - ts_sec * 1000) * 1_000_000) as u32;
 								if let Some(ndt) =
 									NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
 								{
