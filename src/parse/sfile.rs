@@ -101,14 +101,24 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		name: "Sensor".to_string(),
 		children: { model::LogSourceContents::Sources(sensor_child_sources) },
 	};
-	let unknown_logs = model::LogSource {
-		name: "Unknown".to_string(),
-		children: { model::LogSourceContents::Sources(unknown_child_sources) },
+	
+	let sources_vec = {
+		if unknown_child_sources.is_empty() {
+			vec![contr_logs, sensor_logs]
+		}
+		else
+		{
+			let unknown_logs = model::LogSource {
+				name: "Unknown".to_string(),
+				children: { model::LogSourceContents::Sources(unknown_child_sources) },
+			};
+			vec![contr_logs, sensor_logs, unknown_logs]
+		}
 	};
 
 	Ok(model::LogSource {
 		name: path.file_name().unwrap().to_string_lossy().to_string(),
-		children: { model::LogSourceContents::Sources(vec![contr_logs, sensor_logs, unknown_logs]) },
+		children: { model::LogSourceContents::Sources(sources_vec) },
 	})
 }
 
