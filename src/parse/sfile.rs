@@ -70,29 +70,61 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		};
 		child_sources.push(glog::to_log_entries(reader, root));
 	}
-	
+
 	let mut contr_child_sources = Vec::new();
-	let mut sensor_child_sources = Vec::new();
+	let mut sensor_child_sources: std::vec::Vec<model::LogSource> = Vec::new();
 	let mut unknown_child_sources = Vec::new();
-	
-	for source in child_sources {
+
+	for mut source in child_sources {
+		//Controller logs
 		if source.name.starts_with("contr_") {
+			//Remove "contr_" to make it look nicer
+			source.name = source.name.split_off(6);
 			contr_child_sources.push(source);
-		} else if 
-			source.name.starts_with("adm_") || //G
-			source.name.starts_with("axis_") ||
-			source.name.starts_with("laseroven_") || //G
-			source.name.starts_with("sensorbase_") ||
-			source.name.starts_with("telescope_") ||
-			source.name.starts_with("trigger_") ||
-			source.name.starts_with("wfd_") //W
-		{
-			sensor_child_sources.push(source);
-		} else {
-			unknown_child_sources.push(source);
+			continue;
 		}
+
+		//Sensor logs
+		let mut iter = source.name.splitn(2, '_');
+		let board_name = iter.next().unwrap(); //First element always exists
+		if let Some(log_name) = iter.next() {
+			if board_name == "adm" || //G
+				board_name == "axis" ||
+				board_name == "laseroven" || //G
+				board_name == "sensorbase" ||
+				board_name == "telescope" ||
+				board_name == "trigger" ||
+				board_name == "wfd"
+			//W
+			{
+				if sensor_child_sources.is_empty()
+					|| !(sensor_child_sources.last().unwrap().name == board_name)
+				{
+					let board_name_string = board_name.to_string();
+					source.name = log_name.to_string();
+					sensor_child_sources.push(model::LogSource {
+						name: board_name_string,
+						children: { model::LogSourceContents::Sources(vec![source]) },
+					});
+				} else {
+					source.name = log_name.to_string();
+					if let model::LogSourceContents::Sources(sources) =
+						&mut sensor_child_sources.last_mut().unwrap().children
+					{
+						sources.push(source)
+					} else {
+						//We only pushed model::LogSourceContents::Sources
+						unreachable!();
+					}
+				}
+				continue;
+			}
+		}
+
+		//Unknown logs
+		unknown_child_sources.push(source);
 	}
-	
+
 	let contr_logs = model::LogSource {
 		name: "Controller".to_string(),
 		children: { model::LogSourceContents::Sources(contr_child_sources) },
@@ -101,13 +133,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		name: "Sensor".to_string(),
 		children: { model::LogSourceContents::Sources(sensor_child_sources) },
 	};
-	
+
 	let sources_vec = {
 		if unknown_child_sources.is_empty() {
 			vec![contr_logs, sensor_logs]
-		}
-		else
-		{
+		} else {
 			let unknown_logs = model::LogSource {
 				name: "Unknown".to_string(),
 				children: { model::LogSourceContents::Sources(unknown_child_sources) },
