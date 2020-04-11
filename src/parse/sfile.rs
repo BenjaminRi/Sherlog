@@ -41,21 +41,21 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	//Note: The number was already stripped with strip_suffix.
 	glog_files.sort_unstable();
 	let mut deque = std::collections::VecDeque::new();
-	let mut name = "".to_string();
+	let mut last_name = "".to_string();
 	for file in glog_files {
-		if name != file.name {
+		if last_name != file.name {
 			if !deque.is_empty() {
 				let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
 				let reader = ConcatZipReader::new(&mut archive, deque);
 				let root = model::LogSource {
-					name: name,
+					name: last_name,
 					children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 				};
 				child_sources.push(glog::to_log_entries(reader, root));
 			}
 			println!("--------------------");
 			println!("Glog file: {:?}", file);
-			name = file.name;
+			last_name = file.name;
 		} else {
 			println!("Glog file: {:?}", file);
 		}
@@ -65,7 +65,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
 		let reader = ConcatZipReader::new(&mut archive, deque);
 		let root = model::LogSource {
-			name: name,
+			name: last_name,
 			children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 		};
 		child_sources.push(glog::to_log_entries(reader, root));
