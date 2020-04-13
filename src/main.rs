@@ -286,8 +286,25 @@ fn draw(
 		);
 		ctx.set_font_size(store.font_size);
 		
-		ctx.set_source_rgb(0.8, 0.8, 0.8);
+		let mut draw_highlight = false;
 		if Some(i) == store.hover_line {
+			ctx.set_source_rgb(0.8, 0.8, 0.8);
+			draw_highlight = true;
+		}
+		
+		if (store.selected_single.contains(&offset) ||
+		(store.selected_range.is_some() && store.selected_range.unwrap().0 <= offset && store.selected_range.unwrap().1 >= offset))
+		&& !store.excluded_single.contains(&offset) {
+			if draw_highlight {
+				//Cumulative: Row is selected and hovered over
+				ctx.set_source_rgb(0.7, 0.7, 1.0);
+			} else {
+				ctx.set_source_rgb(0.8, 0.8, 1.0);
+			}
+			draw_highlight = true;
+		}
+		
+		if draw_highlight {
 			ctx.rectangle(
 				0.0,
 				store.border_top + store.line_spacing * i as f64,
@@ -483,9 +500,56 @@ fn handle_evt_press(
 			if line >= store.visible_lines {
 			}
 			else {
-				store.anchor_offset = store.rel_to_abs_offset(line);
-				println!("SET anchor: {:?}", store.anchor_offset);
-				drawing_area.queue_draw();
+				let clicked_line = store.rel_to_abs_offset(line);
+				
+				if let Some(clicked_line_val) = clicked_line {
+					if !store.pressed_shift && !store.pressed_ctrl {
+						store.selected_single.clear();
+						store.excluded_single.clear();
+						store.selected_range = None;
+						store.selected_single.insert(clicked_line_val);
+						store.selected_single_last = clicked_line;
+					} else if !store.pressed_shift && store.pressed_ctrl {
+						if !store.selected_single.insert(clicked_line_val) {
+							store.selected_single.remove(&clicked_line_val);
+						}
+						if let Some((pivot, clicked_line_old)) = store.selected_range {
+							if pivot <= clicked_line_val && clicked_line_old >= clicked_line_val {
+								if !store.excluded_single.insert(clicked_line_val) {
+									store.excluded_single.remove(&clicked_line_val);
+								}
+							}
+						}
+						store.selected_single_last = clicked_line;
+					} else {
+						let pivot = store.selected_single_last.unwrap_or(0);
+						if pivot < clicked_line_val {
+							store.selected_range = Some((pivot, clicked_line_val));
+						} else {
+							store.selected_range = Some((clicked_line_val, pivot));
+						}
+						if store.pressed_shift && store.pressed_ctrl {
+							//TODO: 13.04.2020: Behaviour does not reflect 100% how it is in Windows Explorer
+							store.selected_single_last = clicked_line;
+						} else {
+							store.selected_single.clear();
+						}
+						store.excluded_single.clear();
+					}
+				} else {
+					//Click into the void (no line is there)
+					if !store.pressed_shift && !store.pressed_ctrl {
+						store.selected_single.clear();
+						store.excluded_single.clear();
+						store.selected_range = None;
+					}
+				}
+				
+				if clicked_line != store.anchor_offset {
+					store.anchor_offset = clicked_line;
+					println!("SET NEW anchor: {:?}", store.anchor_offset);
+					drawing_area.queue_draw();
+				}
 			}
 		}
 	}
@@ -498,7 +562,7 @@ fn handle_evt_release(
 	_drawing_area: &DrawingArea,
 	_evt: &gdk::EventButton,
 ) -> gtk::Inhibit {
-	println!("RELEASE");
+	//println!("RELEASE");
 	store.mouse_down = false;
 	store.thumb_drag = false;
 	store.thumb_drag_x = 0.0;
@@ -545,7 +609,7 @@ fn handle_evt_motion(
 		};
 		
 		if current_hover != store.hover_line {
-			println!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
+			//println!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
 			store.hover_line = current_hover;
 			drawing_area.queue_draw();
 		}
@@ -682,6 +746,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		show_dbg: true,
 		show_trace: true,
 		
+		selected_single: std::collections::HashSet::new(),
+		excluded_single: std::collections::HashSet::new(),
+		selected_single_last: None,
+		selected_range: None,
+		
+		pressed_shift: false,
+		pressed_ctrl: false,
+		
 		visible_lines: 0,
 		hover_line: None,
 		viewport_offset: 0,
@@ -801,7 +873,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			sources_tree_view.connect_row_activated(move |_tree_view, path, _column| {
 				toggle_row(
 					&left_store_clone,
-					&mut store_rc_clone.clone().borrow_mut(),
+					&mut store_rc_clone.borrow_mut(),
 					&drawing_area_clone,
 					model_sort_clone.convert_path_to_child_path(&path).unwrap()
 				)
@@ -900,7 +972,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Critical,
 				&drawing_area_clone);
 		});
@@ -914,7 +986,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Error,
 				&drawing_area_clone);
 		});
@@ -928,7 +1000,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Warning,
 				&drawing_area_clone);
 		});
@@ -942,7 +1014,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Info,
 				&drawing_area_clone);
 		});
@@ -956,7 +1028,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Debug,
 				&drawing_area_clone);
 		});
@@ -970,7 +1042,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		check_btn.connect_clicked(move |w| {
 			severity_toggle(
 				w,
-				&mut store_rc_clone.clone().borrow_mut(),
+				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Trace,
 				&drawing_area_clone);
 		});
@@ -1013,7 +1085,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	search_entry.connect_search_changed(move |w| {
 		search_changed(
 			w,
-			&mut store_rc_clone.clone().borrow_mut(),
+			&mut store_rc_clone.borrow_mut(),
 			&drawing_area_clone);
 	});
 	
@@ -1079,36 +1151,93 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
 	let f_clone_1 = store_rc.clone();
-	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.clone().borrow_mut(), x, y));
+	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.borrow_mut(), x, y));
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
 
 	// https://gtk-rs.org/docs/gtk/trait.WidgetExt.html
 	let f_clone_2 = store_rc.clone();
-	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.clone().borrow_mut(), x, y));
+	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.borrow_mut(), x, y));
 
 	let f_clone_3 = store_rc.clone();
 	drawing_area.connect_scroll_event(move |x, y| {
-		handle_evt_scroll(&mut f_clone_3.clone().borrow_mut(), x, y)
+		handle_evt_scroll(&mut f_clone_3.borrow_mut(), x, y)
 	});
 
 	let f_clone_4 = store_rc.clone();
 	drawing_area.connect_button_press_event(move |x, y| {
-		handle_evt_press(&mut f_clone_4.clone().borrow_mut(), x, y)
+		handle_evt_press(&mut f_clone_4.borrow_mut(), x, y)
 	});
 
 	let f_clone_5 = store_rc.clone();
 	drawing_area.connect_button_release_event(move |x, y| {
-		handle_evt_release(&mut f_clone_5.clone().borrow_mut(), x, y)
+		handle_evt_release(&mut f_clone_5.borrow_mut(), x, y)
 	});
 
 	let f_clone_6 = store_rc.clone();
 	drawing_area.connect_motion_notify_event(move |x, y| {
-		handle_evt_motion(&mut f_clone_6.clone().borrow_mut(), x, y)
+		handle_evt_motion(&mut f_clone_6.borrow_mut(), x, y)
 	});
 
 	split_pane.pack_start(&drawing_area, true, true, 10);
+	
+	//https://gtk-rs.org/docs/gdk/enums/key/index.html
+	//println!("CODES: {} {} {} {}", gdk::enums::key::Control_L, gdk::enums::key::Control_R, gdk::enums::key::Shift_L, gdk::enums::key::Shift_R);
+	/*You should place GtkDrawArea in GtkEventBox and then doing all that stuff from GtkEventBox. As far as I remember, this is happening because there are not these events for GtkDrawArea. One in stackoverflow explained that, but only with GtkImage. I know, that GtkDrawArea in GtkEventBox works, because I am currently writing app that uses it (app is in c, but it should work for c++ too).
+	https://stackoverflow.com/questions/52171141/gtkmm-how-to-attach-keyboard-events-to-an-drawingarea*/
+	{
+		let store_rc_clone = store_rc.clone();
+		window.connect_key_press_event(move |_window, event_key| {
+			println!("KEY PRESSED! {} {}", event_key.get_keyval(), event_key.get_hardware_keycode());
+			if event_key.get_keyval() == gdk::enums::key::Control_L || event_key.get_keyval() == gdk::enums::key::Control_R {
+				store_rc_clone.borrow_mut().pressed_ctrl = true;
+			}
+			if event_key.get_keyval() == gdk::enums::key::Shift_L || event_key.get_keyval() == gdk::enums::key::Shift_R {
+				store_rc_clone.borrow_mut().pressed_shift = true;
+			}
+			if event_key.get_keyval() == gdk::enums::key::c && store_rc_clone.borrow().pressed_ctrl {
+				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
+				
+				//TODO: 13.04.2020: Can optimize this, use some sort of string stream
+				let mut clip_string = std::string::String::new();
+				
+				//TODO: 13.04.2020: Can optimize this, do not go through entire store
+				for (offset, entry) in store_rc_clone.borrow()
+					.store
+					.iter()
+					.enumerate() //offset in vector
+					.filter(|(_, x)| x.is_visible()) {
+					
+					//TODO: 13.04.2020: Clean up all these borrows.
+					if (store_rc_clone.borrow().selected_single.contains(&offset) ||
+						(store_rc_clone.borrow().selected_range.is_some() && store_rc_clone.borrow().selected_range.unwrap().0 <= offset && store_rc_clone.borrow().selected_range.unwrap().1 >= offset))
+						&& !store_rc_clone.borrow().excluded_single.contains(&offset) {
+							//TODO: 13.04.2020: Also add log source name to string!
+							clip_string += &entry.timestamp.format("%d-%m-%y %T%.6f").to_string();
+							clip_string += &" | ";
+							clip_string += &entry.message;
+							clip_string += &"\r\n"; //TODO: 13.04.2020: Windows vs Linux file endings?
+					}
+				}
+				clipboard.set_text(&clip_string);
+			}
+			gtk::Inhibit(false)
+		} );
+	}
+	{
+		let store_rc_clone = store_rc.clone();
+		window.connect_key_release_event(move |_window, event_key| {
+			println!("KEY RELEASED! {} {}", event_key.get_keyval(), event_key.get_hardware_keycode());
+			if event_key.get_keyval() == gdk::enums::key::Control_L || event_key.get_keyval() == gdk::enums::key::Control_R {
+				store_rc_clone.borrow_mut().pressed_ctrl = false;
+			}
+			if event_key.get_keyval() == gdk::enums::key::Shift_L || event_key.get_keyval() == gdk::enums::key::Shift_R {
+				store_rc_clone.borrow_mut().pressed_shift = false;
+			}
+			gtk::Inhibit(false)
+		} );
+	}
 
 	window.add(&split_pane);
 	window.show_all();
