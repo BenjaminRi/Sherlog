@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Read;
 use std::mem;
+use std::cmp;
 
 // GLOG parser ----------------------------------------------------------------------
 
@@ -243,7 +244,7 @@ impl GlogParser {
 								self.log_sources.insert(
 									sub_source,
 									model::LogSource {
-										name: sub_source.to_string(),
+										name: String::new(), //We fill in sub-source name later
 										children: {
 											model::LogSourceContents::Entries(vec![log_entry])
 										},
@@ -300,23 +301,54 @@ impl GlogParser {
 			}
 		};
 
+		//TODO: Handle log files where some messages specify a source and others don't
+		//(is this a use-case?)
 		if self.log_sources.is_empty() {
+			//If no log message specified a source, we put the entries directly into the root
 			self.root.children = model::LogSourceContents::Entries(self.log_entries);
 		} else {
 			let mut v = Vec::<model::LogSource>::with_capacity(self.log_sources.len());
-			for (_, mut sub_source) in self.log_sources {
+			for (sub_source_id, mut sub_source) in self.log_sources {
 				sub_source.name = match &sub_source.children {
 					model::LogSourceContents::Entries(v) => {
-						if !v.is_empty() {
-							v[0].message.split(":").nth(0).unwrap().to_string() //TODO: Handle error
+						let mut source_name = "";
+						//We don't want to reparse the entire log.
+						//As a heuristic, just take first and last N log messages
+						//and see if the expected log source name matches
+						static N: usize = 5;
+						for entry in v.iter().take(N).chain(v.iter().rev().take(cmp::min(cmp::max(v.len(), N) - N, N))) {
+							//We always create sources with at least one entry,
+							//therefore, this loop body runs at least once
+							let offset = entry.message.find(':');
+							if let Some(offset) = offset {
+								if source_name.is_empty() {
+									source_name = &entry.message[0..offset];
+								} else if source_name != &entry.message[0..offset] {
+									//Conflicting log source names, unknown name
+									source_name = "";
+									break;
+								}
+							} else {
+								//No colon contained, unknown name
+								break;
+							}
+						}
+						if source_name.is_empty() {
+							source_name = "Unknown";
+							format!("{} ({})", source_name, sub_source_id)
 						} else {
-							"???".to_string() //TODO: Handle error
+							source_name.to_string()
 						}
 					}
-					_ => "???".to_string(), //TODO: Handle error
+					model::LogSourceContents::Sources(_) => {
+						//We only pushed model::LogSourceContents::Sources
+						unreachable!();
+					}
 				};
 				v.push(sub_source);
 			}
+			//Case insensitive sort by log source name
+			v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 			self.root.children = model::LogSourceContents::Sources(v);
 		}
 
