@@ -124,6 +124,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		//Unknown logs
 		unknown_child_sources.push(source);
 	}
+	
+	//Case insensitive sort by log source name
+	contr_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
 	let contr_logs = model::LogSource {
 		name: "Controller".to_string(),
