@@ -379,8 +379,16 @@ fn draw(
 		/*let font_face = ctx.get_font_face();
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
 		ctx.set_font_face(&new_font_face);*/
-
+		
 		ctx.show_text(&entry.message);
+		
+		if let Some(source_name) = store.log_sources.get(&entry.source_id) {
+			ctx.move_to(store.border_left + 210.0, font_offset_y + store.font_size);
+			ctx.set_font_size(f64::round(store.font_size * 0.7));
+			ctx.set_source_rgb(0.5, 0.5, 0.5);
+			ctx.show_text(source_name);
+			ctx.set_font_size(store.font_size);
+		}
 	}
 
 	{
@@ -754,6 +762,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		pressed_shift: false,
 		pressed_ctrl: false,
 		
+		log_sources: std::collections::HashMap::<u32, String>::new(),
+		
 		visible_lines: 0,
 		hover_line: None,
 		viewport_offset: 0,
@@ -765,7 +775,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		border_left: 30.0,
 		border_top: 10.0,
 		border_bottom: 10.0,
-		line_spacing: 20.0,
+		line_spacing: 40.0,
 		font_size: 14.0,
 		
 		scroll_bar: ScrollBarVert {
@@ -1114,6 +1124,21 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	println!("before build_log_store");
 	let now = SystemTime::now();
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
+	
+	fn build_log_sources(log_sources: &mut std::collections::HashMap<u32, String>, log_source: &LogSourceExt, prefix: String) {
+		let current_name = String::new() + &prefix + &"/" + &log_source.name;
+		log_sources.insert(log_source.id, current_name.clone());
+		match &log_source.children {
+			LogSourceContentsExt::Sources(v) => {
+				for source in v {
+					build_log_sources(log_sources, source, current_name.clone());
+				}
+			}
+			LogSourceContentsExt::Entries(_) => ()
+		}
+	}
+	
+	build_log_sources(&mut store_rc.borrow_mut().log_sources, &mut log_source_root_ext, String::new());
 
 	store_rc
 		.borrow_mut()

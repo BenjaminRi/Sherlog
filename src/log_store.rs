@@ -2,6 +2,7 @@ extern crate chrono;
 
 use chrono::prelude::*;
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 use crate::model;
 
@@ -46,6 +47,8 @@ pub struct LogStoreLinear {
 	
 	pub pressed_shift: bool,
 	pub pressed_ctrl: bool,
+	
+	pub log_sources: HashMap<u32, String>,
 
 	pub visible_lines: usize, //visible entries in GUI (i.e. number of rows your text viewport has)
 	pub hover_line: Option<usize>, //line the mouse cursor hovers over, relative to viewport_offset
