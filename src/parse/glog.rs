@@ -300,9 +300,7 @@ impl GlogParser {
 				self.read_byte(b'[');
 			}
 		};
-
-		//TODO: Handle log files where some messages specify a source and others don't
-		//(is this a use-case?)
+		
 		if self.log_sources.is_empty() {
 			//If no log message specified a source, we put the entries directly into the root
 			self.root.children = model::LogSourceContents::Entries(self.log_entries);
@@ -347,6 +345,15 @@ impl GlogParser {
 				};
 				v.push(sub_source);
 			}
+			
+			let sub_source = model::LogSource {
+				name: "Unknown (None)".to_string(),
+				children: {
+					model::LogSourceContents::Entries(self.log_entries)
+				},
+			};
+			v.push(sub_source);
+			
 			//Case insensitive sort by log source name
 			v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 			self.root.children = model::LogSourceContents::Sources(v);
