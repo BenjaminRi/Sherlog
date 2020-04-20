@@ -346,13 +346,15 @@ impl GlogParser {
 				v.push(sub_source);
 			}
 			
-			let sub_source = model::LogSource {
-				name: "Unknown (None)".to_string(),
-				children: {
-					model::LogSourceContents::Entries(self.log_entries)
-				},
-			};
-			v.push(sub_source);
+			if !self.log_entries.is_empty() {
+				let sub_source = model::LogSource {
+					name: "Unknown (None)".to_string(),
+					children: {
+						model::LogSourceContents::Entries(self.log_entries)
+					},
+				};
+				v.push(sub_source);
+			}
 			
 			//Case insensitive sort by log source name
 			v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
