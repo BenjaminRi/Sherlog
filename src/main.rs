@@ -944,9 +944,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	build_left_store(&left_store, &log_source_root_ext, None);
 	sources_tree_view.expand_all();
 
-	let split_pane = gtk::Box::new(Orientation::Horizontal, 10);
-
-	split_pane.set_size_request(-1, -1);
+	let split_pane = gtk::Paned::new(Orientation::Horizontal);
+	
 	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
 	scrolled_window_left
 		.set_property("overlay-scrolling", &false)
@@ -1101,7 +1100,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	
 	split_pane_left.pack_start(&search_entry, false, false, 0);
 
-	split_pane.pack_start(&split_pane_left, false, false, 0);
+	split_pane.pack1(&split_pane_left, false, false);
 
 	//https://developer.gnome.org/gtk3/stable/GtkPaned.html
 
@@ -1205,7 +1204,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		handle_evt_motion(&mut f_clone_6.borrow_mut(), x, y)
 	});
 
-	split_pane.pack_start(&drawing_area, true, true, 10);
+	split_pane.pack2(&drawing_area, true, false);
 	
 	//https://gtk-rs.org/docs/gdk/enums/key/index.html
 	//println!("CODES: {} {} {} {}", gdk::enums::key::Control_L, gdk::enums::key::Control_R, gdk::enums::key::Shift_L, gdk::enums::key::Shift_R);
