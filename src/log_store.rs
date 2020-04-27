@@ -113,11 +113,12 @@ impl LogStoreLinear {
 					//Not in viewport, align to the middle of the screen
 					(offset, (std::cmp::max(1, self.visible_lines)-1)/2)
 				}
-			} else if self.store.len() >= self.visible_lines {
+			} else if self.store.len() >= self.visible_lines { //use self.entry_count >= ... !
 				//No anchor; just center on message in the middle of the screen
 				let mut abs_offset = 0;
 				let mut rel_offset = (std::cmp::max(1, self.visible_lines)-1)/2;
 				loop {
+					//TODO: This loop causes performance problems on activation of empty log tree, (if no anchor is set):
 					if let Some(abs_offset_result) = self.rel_to_abs_offset(rel_offset) {
 						abs_offset = abs_offset_result;
 						break;
