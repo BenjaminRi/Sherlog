@@ -225,12 +225,14 @@ impl LogStoreLinear {
 		}
 
 		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
-		let mut offset = 0;
-		for entry in self.store.iter() {
-			if entry.is_visible() && entry.entry_id == entry_id {
-				return Some(offset);
-			}
-			offset += 1;
+		for (offset, _) in self
+				.store
+				.iter()
+				.enumerate()
+				.skip(std::cmp::max(1, entry_id as usize) - 1)
+				.filter(|(_, x)| x.is_visible() && x.entry_id == entry_id)
+				.take(1) {
+			return Some(offset);
 		}
 
 		unreachable!()
