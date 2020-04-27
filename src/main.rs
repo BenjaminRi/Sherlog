@@ -340,7 +340,7 @@ fn draw(
 		//We want to anchor on top left though, so calculate that away:
 		let font_offset_y = offset_y + store.font_size - ctx.font_extents().descent;
 
-		let date_str = entry.timestamp.format("%y-%m-%d %T%.3f").to_string();
+		let date_str = entry.timestamp.format("%d.%m.%y %T%.3f").to_string();
 		ctx.move_to(store.border_left, font_offset_y);
 		ctx.show_text(&date_str);
 
