@@ -105,30 +105,47 @@ impl LogStoreLinear {
 		//Note: The code in this function must be fast. It is critical GUI code.
 		//If this code is slow, then the user will have noticeable GUI lag.
 		
-		let (anchor_offset, rel_offset) = {
-			if let Some(offset) = self.anchor_offset {
-				if let Some(rel_offset) = self.abs_to_rel_offset(offset) {
-					(offset, rel_offset)
+		let (tmp_anchor_offset, rel_offset) = {
+			if let Some(anchor_offset) = self.anchor_offset {
+				if let Some(rel_offset) = self.abs_to_rel_offset(anchor_offset) {
+					(anchor_offset, rel_offset)
 				} else {
-					//Not in viewport, align to the middle of the screen
-					(offset, (std::cmp::max(1, self.visible_lines)-1)/2)
-				}
-			} else if self.store.len() >= self.visible_lines { //use self.entry_count >= ... !
-				//No anchor; just center on message in the middle of the screen
-				let mut abs_offset = 0;
-				let mut rel_offset = (std::cmp::max(1, self.visible_lines)-1)/2;
-				loop {
-					//TODO: This loop causes performance problems on activation of empty log tree, (if no anchor is set):
-					if let Some(abs_offset_result) = self.rel_to_abs_offset(rel_offset) {
-						abs_offset = abs_offset_result;
-						break;
+					//Anchor is not active in viewport
+					//Test if anchor is between the lines of viewport
+					let mut rel_offset = None;
+					if let Some(mut abs_offset) = self.rel_to_abs_offset(0) {
+						let mut prev_offset = abs_offset;
+						for i in 1..self.visible_lines {
+							//Note: The last element points to itself, so it's safe in all cases
+							abs_offset = self.store[abs_offset].next_offset as usize;
+							
+							if anchor_offset >= prev_offset && anchor_offset <= abs_offset {
+								rel_offset = Some(i);
+								break;
+							}
+							prev_offset = abs_offset;
+						}
 					}
-					if rel_offset == 0 {
-						break;
+					if let Some(rel_offset) = rel_offset {
+						//Hold anchor in place because anchor is between the lines of viewport
+						(anchor_offset, rel_offset)
+					} else {
+						//Fallback: Align to the middle of the screen
+						(anchor_offset, (std::cmp::max(1, self.visible_lines)-1)/2)
 					}
-					rel_offset -= 1;
 				}
-				(abs_offset, rel_offset)
+			} else if self.entry_count >= self.visible_lines {
+				if let Some(mut abs_offset) = self.rel_to_abs_offset(0) {
+					//Got top visible line; now advance anchor by half the visible lines
+					let rel_offset = (std::cmp::max(1, self.visible_lines)-1)/2;
+					for _ in 0..rel_offset {
+						//Note: The last element points to itself, so it's safe in all cases
+						abs_offset = self.store[abs_offset].next_offset as usize;
+					}
+					(abs_offset, rel_offset)
+				} else {
+					(0,0)
+				}
 			} else {
 				//No anchor; less elements in store than viewport size; just reset to zero
 				(0, 0)
@@ -186,8 +203,8 @@ impl LogStoreLinear {
 			//First element points to itself
 		}
 		
-		if self.store.len() > 0 && self.store[anchor_offset].is_visible() {
-			self.viewport_offset = anchor_offset;
+		if self.store.len() > 0 && self.store[tmp_anchor_offset].is_visible() {
+			self.viewport_offset = tmp_anchor_offset;
 			self.scroll(-(rel_offset as i64), self.visible_lines);
 		} else {
 			let mut found = false;
@@ -195,7 +212,7 @@ impl LogStoreLinear {
 				.store
 				.iter()
 				.enumerate() //offset in vector
-				.skip(anchor_offset)
+				.skip(tmp_anchor_offset)
 				.filter(|(_, x)| x.is_visible())
 				.take(1)
 			{
