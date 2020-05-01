@@ -36,7 +36,7 @@ struct GlogParser {
 	log_entry: model::LogEntry,
 	sub_source: Option<i32>,
 	log_entries: Vec<model::LogEntry>,
-	log_sources: HashMap<i32, model::LogSource>,
+	log_sources: HashMap<String, model::LogSource>,
 	invalid_bytes: usize,
 	root: model::LogSource,
 }
@@ -51,7 +51,7 @@ impl GlogParser {
 			},
 			sub_source: None,
 			log_entries: Vec::<model::LogEntry>::new(),
-			log_sources: HashMap::<i32, model::LogSource>::new(),
+			log_sources: HashMap::<String, model::LogSource>::new(),
 			invalid_bytes: 0,
 			root: root,
 		}
@@ -229,7 +229,23 @@ impl GlogParser {
 						);
 						if let Some(sub_source) = self.sub_source {
 							//Log entry specified a log sub-source
-							let source_option = self.log_sources.get_mut(&sub_source);
+							
+							//Note: We don't actually use QNX log source IDs properly
+							//All we do is prepend source string name, plus colon and space
+							
+							let offset = log_entry.message.find(": ");
+							let source_name = if let Some(offset) = offset {
+								let name_slice = &log_entry.message[0..offset];
+								if !name_slice.is_empty() {
+									Some(std::borrow::Cow::from(name_slice))
+								} else {
+									None
+								}
+							} else {
+								None
+							}.unwrap_or(std::borrow::Cow::from(format!("Unknown ({})", sub_source)));
+							
+							let source_option = self.log_sources.get_mut(source_name.as_ref());
 							if let Some(source) = source_option {
 								//Log sub-source exists, push log entry
 								let children = &mut source.children;
@@ -237,14 +253,14 @@ impl GlogParser {
 									model::LogSourceContents::Entries(v) => {
 										v.push(log_entry);
 									}
-									_ => (),
+									_ => unreachable!(), //We only insert LogSourceContents::Entries
 								}
 							} else {
 								//Log sub-source does not yet exist
 								self.log_sources.insert(
-									sub_source,
+									source_name.to_string(),
 									model::LogSource {
-										name: String::new(), //We fill in sub-source name later
+										name: source_name.to_string(),
 										children: {
 											model::LogSourceContents::Entries(vec![log_entry])
 										},
@@ -305,44 +321,8 @@ impl GlogParser {
 			//If no log message specified a source, we put the entries directly into the root
 			self.root.children = model::LogSourceContents::Entries(self.log_entries);
 		} else {
-			let mut v = Vec::<model::LogSource>::with_capacity(self.log_sources.len());
-			for (sub_source_id, mut sub_source) in self.log_sources {
-				sub_source.name = match &sub_source.children {
-					model::LogSourceContents::Entries(v) => {
-						let mut source_name = "";
-						//We don't want to reparse the entire log.
-						//As a heuristic, just take first and last N log messages
-						//and see if the expected log source name matches
-						static N: usize = 5;
-						for entry in v.iter().take(N).chain(v.iter().rev().take(cmp::min(cmp::max(v.len(), N) - N, N))) {
-							//We always create sources with at least one entry,
-							//therefore, this loop body runs at least once
-							let offset = entry.message.find(':');
-							if let Some(offset) = offset {
-								if source_name.is_empty() {
-									source_name = &entry.message[0..offset];
-								} else if source_name != &entry.message[0..offset] {
-									//Conflicting log source names, unknown name
-									source_name = "";
-									break;
-								}
-							} else {
-								//No colon contained, unknown name
-								break;
-							}
-						}
-						if source_name.is_empty() {
-							source_name = "Unknown";
-							format!("{} ({})", source_name, sub_source_id)
-						} else {
-							source_name.to_string()
-						}
-					}
-					model::LogSourceContents::Sources(_) => {
-						//We only pushed model::LogSourceContents::Sources
-						unreachable!();
-					}
-				};
+			let mut v = Vec::<model::LogSource>::with_capacity(self.log_sources.len() + !self.log_entries.is_empty() as usize);
+			for (_, sub_source) in self.log_sources {
 				v.push(sub_source);
 			}
 			
