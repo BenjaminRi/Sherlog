@@ -733,7 +733,22 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		if file_paths.len() > 1 {
 			println!("WARNING: Multiple files opened, ignoring all but the first one.");
 		}
-		parse::from_file(&file_paths[0]).expect("Could not read file!")
+		
+		let now = SystemTime::now();
+		let root = parse::from_file(&file_paths[0]).expect("Could not read file!");
+		match now.elapsed() {
+			Ok(elapsed) => {
+				println!(
+					"Time to parse file: {}ms",
+					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+				);
+			}
+			Err(e) => {
+				// an error occurred!
+				println!("Error: {:?}", e);
+			}
+		}
+		root
 	} else {
 		log_source_root
 	};
