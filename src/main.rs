@@ -164,7 +164,23 @@ fn toggle_row(
 		.get_some::<u32>()
 		.unwrap();
 	sources.push(id);
+	
+	let now = SystemTime::now();
 	activate_children(tree_store, path, active, &mut sources);
+	match now.elapsed() {
+		Ok(elapsed) => {
+			println!(
+				"Time to activate children: {}ms",
+				elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+			);
+		}
+		Err(e) => {
+			// an error occurred!
+			println!("Error: {:?}", e);
+		}
+	}
+	
+	
 	//println!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
 
 	let mut ordered = true;
