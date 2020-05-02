@@ -129,33 +129,43 @@ fn toggle_row(
 
 	fn activate_children(
 		tree_store: &gtk::TreeStore,
-		mut path: gtk::TreePath,
+		iter: &gtk::TreeIter,
 		active: bool,
 		sources: &mut Vec<u32>,
 	) {
-		//println!("activate_children... {:?}", path.get_indices_with_depth());
-		path.down();
-		while let Some(iter) = tree_store.get_iter(&path) {
-			let n_active = tree_store
-				.get_value(&iter, LogSourcesColumns::Active as i32)
-				.get_some::<bool>()
-				.unwrap();
-			if n_active != active {
-				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+		if let Some(iter) = tree_store.iter_children(Some(iter)) {
+			loop {
+				/*let n_text = tree_store
+					.get_value(&iter, LogSourcesColumns::Text as i32)
+					.get::<String>()
+					.unwrap()
+					.unwrap();
+				
+				println!("{}", n_text);*/
+				let n_active = tree_store
+					.get_value(&iter, LogSourcesColumns::Active as i32)
+					.get_some::<bool>()
+					.unwrap();
+				if n_active != active {
+					tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+				}
+				let n_id = tree_store
+					.get_value(&iter, LogSourcesColumns::Id as i32)
+					.get_some::<u32>()
+					.unwrap();
+				//println!("activate_children... {}", n_id);
+				sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
+				tree_store.set_value(
+					&iter,
+					LogSourcesColumns::Inconsistent as u32,
+					&false.to_value(),
+				);
+				
+				activate_children(tree_store, &iter, active, sources);
+				if !tree_store.iter_next(&iter) {
+					break;
+				}
 			}
-			let n_id = tree_store
-				.get_value(&iter, LogSourcesColumns::Id as i32)
-				.get_some::<u32>()
-				.unwrap();
-			//println!("activate_children... {}", n_id);
-			sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
-			tree_store.set_value(
-				&iter,
-				LogSourcesColumns::Inconsistent as u32,
-				&false.to_value(),
-			);
-			activate_children(tree_store, path.clone(), active, sources);
-			path.next();
 		}
 	}
 	let mut sources = Vec::<u32>::new();
@@ -166,7 +176,7 @@ fn toggle_row(
 	sources.push(id);
 	
 	let now = SystemTime::now();
-	activate_children(tree_store, path, active, &mut sources);
+	activate_children(tree_store, &iter, active, &mut sources);
 	match now.elapsed() {
 		Ok(elapsed) => {
 			println!(
