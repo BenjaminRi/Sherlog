@@ -855,6 +855,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		glib::Type::U64,
 	]);
 	//let left_store_sort = gtk::TreeModelSort::new(&left_store);
+	//Do not use TreeModelSort:
+	//https://github.com/gtk-rs/gtk/issues/1000 (closed as problem is not in Rust wrapper)
+	//https://gitlab.gnome.org/GNOME/gtk/-/issues/2693 (issue in GTK)
 	let sources_tree_view = gtk::TreeView::new_with_model(&left_store);
 	sources_tree_view.set_headers_visible(true);
 
