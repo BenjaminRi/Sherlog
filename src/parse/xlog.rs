@@ -1,36 +1,119 @@
-//use super::super::model;
+use super::super::model;
 
 extern crate chrono;
 
-/*use chrono::prelude::*;
-use std::collections::HashMap;
+use chrono::prelude::*;
 use std::io::BufReader;
-use std::io::Read;
-use std::mem;
-use std::cmp;
-
+use std::io::BufRead;
 
 // XLOG parser ----------------------------------------------------------------------
 
-pub fn to_log_entries(reader: impl std::io::Read, root: model::LogSource) -> model::LogSource {
-	let mut parser = GlogParser::new(root);
-
-	let mut bufreader = BufReader::new(reader);
-	let mut buffer = [0; 1];
-	loop {
-		if let Ok(bytes_read) = bufreader.read(&mut buffer) {
-			if bytes_read == 0 {
-				//println!("Len srcs {}, entrs {}", parser.log_sources.len(), parser.log_entries.len());
-				break parser.finalize();
+pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) -> model::LogSource {
+	let bufreader = BufReader::new(reader);
+	let mut log_entries = Vec::<model::LogEntry>::new();
+	for line in bufreader.lines() {
+		let mut log_entry = model::LogEntry {
+			..Default::default()
+		};
+		//TODO: When is line None? Does that even happen?
+		for unit in line.unwrap().split('˫') {
+			let offset = unit.find('˩');
+			if let Some(offset) = offset {
+				let unit_header = &unit[0..offset];
+				let unit_value = &unit[offset+2..]; //Note: +2 because '˩' is 2 Byte in UTF-8
+				
+				match unit_header.as_ref() {
+					"<T>" => {
+						if let Ok(mut ts_100ns) = unit_value.parse::<u64>() {
+							// 100-nanosecond offset from 0000-01-01 00:00:00.000 to 1970-01-01 00:00:00.000
+							const TIME_OFFSET: u64 = 621_355_968_000_000_000;
+							if ts_100ns >= TIME_OFFSET {
+								ts_100ns -= TIME_OFFSET;
+								let ts_sec: u64 = ts_100ns / 10_000_000;
+								let ts_nano: u32 = (ts_100ns - ts_sec * 10_000_000) as u32;
+								if let Some(ndt) =
+									NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
+								{
+									log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+								} else {
+									//TODO: Notify of invalid datetime?
+									println!("MALFORMED Log 100ns stamp datetime: {}", unit_value);
+								}
+							} else {
+								//TODO: Notify of invalid offset?
+								println!("MALFORMED Log 100ns stamp offset: {}", ts_100ns);
+							}
+						} else {
+							//TODO: Notify of invalid time?
+							println!("MALFORMED Log 100ns stamp: {}", unit_value);
+						}
+					},
+					"<L>" => {
+						if let Some(xlog_sev) = XlogSeverity::from_str(unit_value) {
+							log_entry.severity = normalize_xlog_sev(xlog_sev);
+						} else {
+							//TODO: Notify of invalid severity?
+							println!("INVALID Log severity: {}", unit_value);
+						}
+					}
+					"<M>" => {
+						log_entry.message = unit_value.to_string();
+					},
+					_ => {
+						//TODO: Notify of invalid kind?
+						//println!("UNRECOGNIZED kind: {}", &unit_header);
+					},
+				}
+				
+				//println!("Header: [{}] Value: [{}]", unit_header, unit_value);
 			} else {
-				parser.read_byte(buffer[0]);
+				println!("ERROR: NO DELMIMTER FOUND IN {}", unit);
 			}
-		} else {
-			break parser.finalize();
+		}
+		
+		log_entries.push(log_entry);
+    }
+	
+	root.children = model::LogSourceContents::Entries(log_entries);
+	root
+}
+
+fn normalize_xlog_sev(xlog_sev: XlogSeverity) -> model::LogLevel {
+	return match xlog_sev {
+		XlogSeverity::AppStart  => model::LogLevel::Info, //loss of information!
+		XlogSeverity::AppStop   => model::LogLevel::Info, //loss of information!
+		XlogSeverity::Info      => model::LogLevel::Info,
+		XlogSeverity::Warning   => model::LogLevel::Warning,
+		XlogSeverity::Error     => model::LogLevel::Error,
+		XlogSeverity::Exception => model::LogLevel::Error, //loss of information!
+		XlogSeverity::Debug     => model::LogLevel::Debug,
+	};
+}
+
+enum XlogSeverity {
+	AppStart,
+	AppStop,
+	Info,
+	Warning,
+	Error,
+	Exception,
+	Debug,
+}
+
+impl XlogSeverity {
+	fn from_str(value: &str) -> Option<XlogSeverity> {
+		match value {
+			"AppStart"  => Some(XlogSeverity::AppStart),
+			"AppStop"   => Some(XlogSeverity::AppStop),
+			"Info"      => Some(XlogSeverity::Info),
+			"Warning"   => Some(XlogSeverity::Warning),
+			"Error"     => Some(XlogSeverity::Error),
+			"Exception" => Some(XlogSeverity::Exception),
+			"Debug"     => Some(XlogSeverity::Debug),
+			_ => None,
 		}
 	}
 }
-*/
 
 //Note: This absolutely lunatic format uses various weird Unicode
 //symbols to encode delimiters and newlines. Apparently its author
@@ -54,7 +137,7 @@ pub fn to_log_entries(reader: impl std::io::Read, root: model::LogSource) -> mod
 //<T>   timestamp
 //<L>   log level (AppStart, AppStop, Info, Warning, Error, Exception, Debug)
 //<M>   message
-//<E>   exception details (e.g. stack traces, etc.)
+//<E>   exception details (e.g. stack traces, etc.) ('˪' is newline!)
 //<A>   application (GUID?)
 //<I>   process ID (PID)
 //<C>   channel (user level?)
@@ -63,6 +146,6 @@ pub fn to_log_entries(reader: impl std::io::Read, root: model::LogSource) -> mod
 //<EN>  error number
 
 //Files are structured as follows: Application_PID_channel_datetime.xlog
-//Files with same Application_PID_channel - tuple are concatenated
-//in the order they were written into the file.
-
+//1. Files with same Application_PID_channel - concatenate /group in temporal order.
+//2. Group the collections formed in (1) by channel
+//3. Parse & merge sort together

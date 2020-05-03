@@ -2,7 +2,10 @@ extern crate zip;
 
 use super::super::model;
 use super::glog;
+use super::xlog;
+
 use std::mem;
+use std::collections::HashMap;
 
 static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
 
@@ -12,6 +15,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 
 	let mut glog_files = Vec::new();
 
+	let mut client_child_sources = Vec::new();
 	let mut child_sources = Vec::new();
 	child_sources.reserve(archive.len());
 	for i in 0..archive.len() {
@@ -32,10 +36,67 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 					strip_suffix(&mut s);
 					glog_files.push(ZipEntry { name: s, index: i });
 				}
+				"xlog" => {
+					//println!("XLOG: {}", &stem);
+					let root = model::LogSource {
+						name: stem.to_string(),
+						children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+					};
+					client_child_sources.push(xlog::to_log_entries(file, root));
+				}
 				_ => (),
 			}
 		}
 	}
+	
+	//Arrange Client logs into their respective channels
+	let mut client_log_sources = HashMap::<String, model::LogSource>::new();
+	for file_source in client_child_sources {
+		let split_name = file_source.name.split("_");
+		let channel_name = if let Some(channel) = split_name.skip(2).take(1).next() {
+			channel
+		} else {
+			"Unknown"
+		};
+		
+		let source_option = client_log_sources.get_mut(channel_name);
+		if let Some(source) = source_option {
+			//Log sub-source exists, push contents
+			let children = &mut source.children;
+			match children {
+				model::LogSourceContents::Entries(v) => {
+					if let model::LogSourceContents::Entries(mut entries) = file_source.children {
+						v.append(&mut entries);
+					} else {
+						unreachable!(); //If this panics, there is a bug in the XLOG parser
+					}
+				}
+				_ => unreachable!(), //We only insert LogSourceContents::Entries
+			}
+		} else {
+			//Log sub-source does not yet exist
+			client_log_sources.insert(
+				channel_name.to_string(),
+				model::LogSource {
+					name: channel_name.to_string(),
+					children: {
+						if let model::LogSourceContents::Entries(entries) = file_source.children {
+							model::LogSourceContents::Entries(entries)
+						} else {
+							unreachable!(); //If this panics, there is a bug in the XLOG parser
+						}
+					},
+				},
+			);
+		}
+	}
+	let mut client_child_sources = Vec::new();
+	for (_, sub_source) in client_log_sources {
+		client_child_sources.push(sub_source);
+	}
+	
+	//client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	
 
 	//Merge numbered files together (e.g. contr_ProcessManager and contr_ProcessManager_1)
 	//Note: The number was already stripped with strip_suffix.
@@ -138,18 +199,19 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		name: "Sensor".to_string(),
 		children: { model::LogSourceContents::Sources(sensor_child_sources) },
 	};
-
-	let sources_vec = {
-		if unknown_child_sources.is_empty() {
-			vec![contr_logs, sensor_logs]
-		} else {
-			let unknown_logs = model::LogSource {
-				name: "Unknown".to_string(),
-				children: { model::LogSourceContents::Sources(unknown_child_sources) },
-			};
-			vec![contr_logs, sensor_logs, unknown_logs]
-		}
+	let client_logs = model::LogSource {
+		name: "Client".to_string(),
+		children: { model::LogSourceContents::Sources(client_child_sources) },
 	};
+
+	let mut sources_vec = vec![client_logs, contr_logs, sensor_logs];
+	if !unknown_child_sources.is_empty() {
+		let unknown_logs = model::LogSource {
+			name: "Unknown".to_string(),
+			children: { model::LogSourceContents::Sources(unknown_child_sources) },
+		};
+		sources_vec.push(unknown_logs);
+	}
 
 	Ok(model::LogSource {
 		name: path.file_name().unwrap().to_string_lossy().to_string(),
