@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Read;
 use std::mem;
-use std::cmp;
 
 // GLOG parser ----------------------------------------------------------------------
 
