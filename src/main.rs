@@ -986,7 +986,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 	}
 	build_left_store(&left_store, &log_source_root_ext, None);
-	sources_tree_view.expand_all();
+	sources_tree_view.expand_row(&gtk::TreePath::new_first(), false);
+	//sources_tree_view.expand_all();
 
 	let split_pane = gtk::Paned::new(Orientation::Horizontal);
 	
