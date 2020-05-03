@@ -854,11 +854,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		glib::Type::U32,
 		glib::Type::U64,
 	]);
-	let left_store_sort = gtk::TreeModelSort::new(&left_store);
-	let sources_tree_view = gtk::TreeView::new_with_model(&left_store_sort);
+	//let left_store_sort = gtk::TreeModelSort::new(&left_store);
+	let sources_tree_view = gtk::TreeView::new_with_model(&left_store);
 	sources_tree_view.set_headers_visible(true);
 
-	{
+	/*{
 		//https://github.com/ChariotEngine/drs-studio/blob/f0303b52063f0d365732941e5096c42dad06f326/ui/gtk/src/main.rs
 		let store_clone = left_store_sort.clone();
 		left_store_sort.set_sort_func(
@@ -876,7 +876,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				l_id.cmp(&r_id)
 			},
 		);
-	}
+	}*/
 
 	// Column with checkbox to toggle log sources, plus log source name
 	{
@@ -885,9 +885,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		column.set_sizing(gtk::TreeViewColumnSizing::Fixed);
 		column.set_title("Log source");
 		column.set_fixed_width(300);
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogSourcesColumns::Text as i32);
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+		//column.set_sort_column_id(LogSourcesColumns::Text as i32);
 
 		{
 			let renderer_toggle = gtk::CellRendererToggle::new();
@@ -918,7 +918,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//https://gtk-rs.org/docs/gtk/trait.TreeViewExt.html
 			
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
-			let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
+			//let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
 			let drawing_area_clone = drawing_area.clone(); //GTK objects are refcounted, just clones ref
 			let store_rc_clone = store_rc.clone();
 			sources_tree_view.connect_row_activated(move |_tree_view, path, _column| {
@@ -926,7 +926,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 					&left_store_clone,
 					&mut store_rc_clone.borrow_mut(),
 					&drawing_area_clone,
-					model_sort_clone.convert_path_to_child_path(&path).unwrap()
+					path.clone()
 				)
 			});
 			
@@ -937,9 +937,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	{
 		let column = gtk::TreeViewColumn::new();
 		column.set_title("Entries");
-		column.set_sort_indicator(true);
-		column.set_clickable(true);
-		column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
+		//column.set_sort_indicator(true);
+		//column.set_clickable(true);
+		//column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
 
 		{
 			let renderer_text = CellRendererText::new();
