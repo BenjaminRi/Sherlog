@@ -1,5 +1,5 @@
 //Hide Windows cmd console on opening the application
-//#![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 
 extern crate cairo;
 extern crate chrono;
@@ -408,13 +408,13 @@ fn draw(
 		
 		ctx.show_text(&entry.message);
 		
-		if let Some(source_name) = store.log_sources.get(&entry.source_id) {
+		/*if let Some(source_name) = store.log_sources.get(&entry.source_id) {
 			ctx.move_to(store.border_left + 210.0, font_offset_y + store.font_size);
 			ctx.set_font_size(f64::round(store.font_size * 0.7));
 			ctx.set_source_rgb(0.5, 0.5, 0.5);
 			ctx.show_text(source_name);
 			ctx.set_font_size(store.font_size);
-		}
+		}*/
 	}
 
 	{
@@ -606,6 +606,7 @@ fn handle_evt_release(
 
 fn handle_evt_motion(
 	store: &mut LogStoreLinear,
+	timediff_entry: &gtk::Entry,
 	drawing_area: &DrawingArea,
 	evt: &gdk::EventMotion,
 ) -> gtk::Inhibit {
@@ -643,6 +644,33 @@ fn handle_evt_motion(
 		};
 		
 		if current_hover != store.hover_line {
+			if let Some(line) = current_hover {
+				if let Some(hover_entry) = store.rel_to_abs_offset(line) {
+					if let Some(anchor) = store.anchor_offset {
+						let timediff = store.store[hover_entry].timestamp - store.store[anchor].timestamp;
+						let mut timediff_ms = i64::abs(timediff.num_milliseconds());
+						let days = timediff_ms / 86_400_000;
+						timediff_ms -= days * 86_400_000;
+						let hours = timediff_ms / 3_600_000;
+						timediff_ms -= hours * 3_600_000;
+						let minutes = timediff_ms / 60_000;
+						timediff_ms -= minutes * 60_000;
+						let seconds = timediff_ms / 1000;
+						timediff_ms -= seconds * 1000;
+						let milliseconds = timediff_ms;
+						let sign = if timediff.num_milliseconds() < 0 {
+							'-'
+						} else {
+							'+'
+						};
+						let text = format!("{}{}D {:02}:{:02}:{:02}.{:03}", sign, days, hours, minutes, seconds, milliseconds);
+						timediff_entry.set_text(&text);
+					}
+				}
+			} else {
+				//TODO: This is not perfect... Needs hover to update, even if log store becomes empty:
+				timediff_entry.set_text("+0D 00:00:00.000");
+			}
 			//println!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
 			store.hover_line = current_hover;
 			drawing_area.queue_draw();
@@ -816,7 +844,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		border_left: 30.0,
 		border_top: 10.0,
 		border_bottom: 10.0,
-		line_spacing: 40.0,
+		line_spacing: 20.0,
 		font_size: 14.0,
 		
 		scroll_bar: ScrollBarVert {
@@ -1144,6 +1172,16 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	});
 	
 	split_pane_left.pack_start(&search_entry, false, false, 0);
+	
+	let timediff_entry = gtk::Entry::new();
+	timediff_entry.set_editable(false);
+	timediff_entry.set_alignment(1.0); //1.0 is right-aligned
+	timediff_entry.set_text("+0D 00:00:00.000");
+	let timediff_label = gtk::Label::new(Some("Δt (hover-anchor):"));
+	let timediff_box = gtk::Box::new(Orientation::Horizontal, 4);
+	timediff_box.pack_start(&timediff_label, false, false, 0);
+	timediff_box.pack_start(&timediff_entry, true, true, 0);
+	split_pane_left.pack_start(&timediff_box, false, false, 0);
 
 	split_pane.pack1(&split_pane_left, false, false);
 
@@ -1246,7 +1284,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	let f_clone_6 = store_rc.clone();
 	drawing_area.connect_motion_notify_event(move |x, y| {
-		handle_evt_motion(&mut f_clone_6.borrow_mut(), x, y)
+		handle_evt_motion(&mut f_clone_6.borrow_mut(), &timediff_entry.clone(), x, y)
 	});
 
 	split_pane.pack2(&drawing_area, true, false);
