@@ -10,8 +10,8 @@ use std::collections::HashMap;
 static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
 
 pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io::Error> {
-	let file = std::fs::File::open(&path).unwrap();
-	let mut archive = zip::ZipArchive::new(file).unwrap();
+	let file = std::fs::File::open(&path)?;
+	let mut archive = zip::ZipArchive::new(file)?;
 
 	let mut glog_files = Vec::new();
 
@@ -20,9 +20,9 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	child_sources.reserve(archive.len());
 	for i in 0..archive.len() {
 		let file = if let Some(password) = SFILE_PASSWORD {
-			archive.by_index_decrypt(i, password.as_bytes()).unwrap()
+			archive.by_index_decrypt(i, password.as_bytes())?
 		} else {
-			archive.by_index(i).unwrap()
+			archive.by_index(i)?
 		};
 		let outpath = file.sanitized_name();
 		let stem = outpath.file_stem().unwrap();

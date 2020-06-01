@@ -1,5 +1,5 @@
 //Hide Windows cmd console on opening the application
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 
 extern crate cairo;
 extern crate chrono;
@@ -782,6 +782,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	//---------------------------------------------------------------------------------------
 
+	let mut dialog_vec : Vec::<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
+	
 	println!("{:?}", file_paths);
 	let log_source_root = if !file_paths.is_empty() {
 		if file_paths.len() > 1 {
@@ -789,7 +791,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 		
 		let now = SystemTime::now();
-		let root = parse::from_file(&file_paths[0]).expect("Could not read file!");
+		let root = parse::from_file(&file_paths[0]);
 		match now.elapsed() {
 			Ok(elapsed) => {
 				println!(
@@ -802,7 +804,24 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				println!("Error: {:?}", e);
 			}
 		}
-		root
+		
+		match root {
+			Ok(root) => {
+				root
+			},
+			Err(err) => {
+				let error_str = format!("Error: {}", err);
+				dialog_vec.push(
+					gtk::MessageDialog::new(
+						Some(&window),
+						gtk::DialogFlags::empty(),
+						gtk::MessageType::Error,
+						gtk::ButtonsType::Ok,
+						&error_str)
+					);
+				log_source_root
+			},
+		}
 	} else {
 		log_source_root
 	};
@@ -1348,6 +1367,12 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	window.add(&split_pane);
 	window.show_all();
+	
+	for dialog in dialog_vec {
+		dialog.run();
+		dialog.destroy();
+	}
+	
 }
 
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
