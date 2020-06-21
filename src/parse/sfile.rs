@@ -11,7 +11,7 @@ static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
 
 pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io::Error> {
 	let file = std::fs::File::open(&path)?;
-	let mut archive = zip::ZipArchive::new(file)?;
+	let mut archive = zip::ZipArchive::new(file).unwrap(); //TODO: 21.06.2020: Handle ZipError!;
 
 	let mut glog_files = Vec::new();
 
@@ -20,9 +20,9 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	child_sources.reserve(archive.len());
 	for i in 0..archive.len() {
 		let file = if let Some(password) = SFILE_PASSWORD {
-			archive.by_index_decrypt(i, password.as_bytes())?
+			archive.by_index_decrypt(i, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
 		} else {
-			archive.by_index(i)?
+			archive.by_index(i).unwrap() //TODO: 21.06.2020: Handle ZipError!
 		};
 		let outpath = file.sanitized_name();
 		let stem = outpath.file_stem().unwrap();
@@ -257,9 +257,9 @@ impl<'a, R: std::io::Read + std::io::Seek> std::io::Read for ConcatZipReader<'a,
 					Some(idx) => {
 						//Need to open new file
 						let f = if let Some(password) = SFILE_PASSWORD {
-							self.archive.by_index_decrypt(idx, password.as_bytes())?
+							self.archive.by_index_decrypt(idx, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
 						} else {
-							self.archive.by_index(idx)?
+							self.archive.by_index(idx).unwrap() //TODO: 21.06.2020: Handle ZipError!
 						};
 						unsafe {
 							//Due to the fact that file references archive and both are in the same struct,
