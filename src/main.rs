@@ -14,10 +14,10 @@ use gio::prelude::*;
 use gtk::prelude::*;
 use gtk::DrawingArea;
 
+use std::time::Instant;
+
 use std::cell::RefCell;
 use std::rc::Rc;
-
-use std::time::SystemTime;
 
 #[allow(unused_imports)]
 use regex::Regex;
@@ -175,21 +175,13 @@ fn toggle_row(
 		.unwrap();
 	sources.push(id);
 	
-	let now = SystemTime::now();
+	let now = Instant::now();
 	activate_children(tree_store, &iter, active, &mut sources);
-	match now.elapsed() {
-		Ok(elapsed) => {
-			println!(
-				"Time to activate children: {}ms",
-				elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-			);
-		}
-		Err(e) => {
-			// an error occurred!
-			println!("Error: {:?}", e);
-		}
-	}
-	
+	let elapsed = now.elapsed();
+	println!(
+		"Time to activate children: {}ms",
+		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+	);
 	
 	//println!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
 
@@ -222,24 +214,17 @@ fn toggle_row(
 	re.is_match(&entry.message)
 	*/
 
-	let now = SystemTime::now();
+	let now = Instant::now();
 	store.filter_store(
 		&|entry: &LogEntryExt| entry.source_id >= first_id && entry.source_id <= last_id,
 		active,
 		crate::model_internal::VISIBLE_OFF_SOURCE,
 	);
-	match now.elapsed() {
-		Ok(elapsed) => {
-			println!(
-				"Time to update store: {}ms",
-				elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-			);
-		}
-		Err(e) => {
-			// an error occurred!
-			println!("Error: {:?}", e);
-		}
-	}
+	let elapsed = now.elapsed();
+	println!(
+		"Time to update store: {}ms",
+		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+	);
 
 	drawing_area.queue_draw();
 }
@@ -790,20 +775,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			println!("WARNING: Multiple files opened, ignoring all but the first one.");
 		}
 		
-		let now = SystemTime::now();
+		let now = Instant::now();
 		let root = parse::from_file(&file_paths[0]);
-		match now.elapsed() {
-			Ok(elapsed) => {
-				println!(
-					"Time to parse file: {}ms",
-					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-				);
-			}
-			Err(e) => {
-				// an error occurred!
-				println!("Error: {:?}", e);
-			}
-		}
+		let elapsed = now.elapsed();
+		println!(
+			"Time to parse file: {}ms",
+			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+		);
 		
 		match root {
 			Ok(root) => {
@@ -1223,7 +1201,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	}
 
 	println!("before build_log_store");
-	let now = SystemTime::now();
+	let now = Instant::now();
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
 	
 	fn build_log_sources(log_sources: &mut std::collections::HashMap<u32, String>, log_source: &LogSourceExt, prefix: String) {
@@ -1251,18 +1229,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		crate::model_internal::VISIBLE_OFF_SOURCE,
 	); //set all to active, initialize ids
 
-	match now.elapsed() {
-		Ok(elapsed) => {
-			println!(
-				"Time to create store: {}ms",
-				elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-			);
-		}
-		Err(e) => {
-			// an error occurred!
-			println!("Error: {:?}", e);
-		}
-	}
+	let elapsed = now.elapsed();
+	println!(
+		"Time to create store: {}ms",
+		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+	);
 	println!("after build_log_store");
 
 	//-------------------------------------------------------------------------------
