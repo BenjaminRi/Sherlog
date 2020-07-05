@@ -1,8 +1,8 @@
 extern crate chrono;
 
 use chrono::prelude::*;
-use std::collections::HashSet;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::model;
 
@@ -28,26 +28,26 @@ pub struct ScrollBarVert {
 
 pub struct LogStoreLinear {
 	pub store: Vec<LogEntryExt>,
-	pub entry_count: usize, //entry_count <= store.len(), number of active items
+	pub entry_count: usize,  //entry_count <= store.len(), number of active items
 	pub first_offset: usize, //first_offset < store.len(), offset of first active element in vec
-	pub last_offset: usize, //last_offset < store.len(), offset of last active element in vec
+	pub last_offset: usize,  //last_offset < store.len(), offset of last active element in vec
 	pub anchor_offset: Option<usize>, //anchor_offset < store.len(), offset of anchor element that aligns GUI on visibility changes
-	
+
 	pub show_crit: bool,
 	pub show_err: bool,
 	pub show_warn: bool,
 	pub show_info: bool,
 	pub show_dbg: bool,
 	pub show_trace: bool,
-	
+
 	pub selected_single: HashSet<usize>,
 	pub excluded_single: HashSet<usize>,
 	pub selected_single_last: Option<usize>,
 	pub selected_range: Option<(usize, usize)>,
-	
+
 	pub pressed_shift: bool,
 	pub pressed_ctrl: bool,
-	
+
 	pub log_sources: HashMap<u32, String>,
 
 	pub visible_lines: usize, //visible entries in GUI (i.e. number of rows your text viewport has)
@@ -58,7 +58,7 @@ pub struct LogStoreLinear {
 	pub thumb_drag_x: f64,
 	pub thumb_drag_y: f64,
 	pub scroll_bar: ScrollBarVert,
-	
+
 	pub border_left: f64,
 	pub border_top: f64,
 	pub border_bottom: f64,
@@ -81,7 +81,7 @@ impl LogStoreLinear {
 		}
 		return None;
 	}
-	
+
 	pub fn abs_to_rel_offset(&self, abs_offset: usize) -> Option<usize> {
 		for (i, (offset, _)) in self
 			.store
@@ -90,7 +90,8 @@ impl LogStoreLinear {
 			.skip(self.viewport_offset)
 			.filter(|(_, x)| x.is_visible())
 			.take(self.visible_lines)
-			.enumerate() //index of filtered element
+			//index of filtered element:
+			.enumerate()
 		{
 			if offset == abs_offset {
 				return Some(i);
@@ -99,12 +100,11 @@ impl LogStoreLinear {
 		return None;
 	}
 
-
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
 	pub fn filter_store(&mut self, filter: &dyn Fn(&LogEntryExt) -> bool, active: bool, mask: u8) {
 		//Note: The code in this function must be fast. It is critical GUI code.
 		//If this code is slow, then the user will have noticeable GUI lag.
-		
+
 		let (tmp_anchor_offset, rel_offset) = {
 			if let Some(anchor_offset) = self.anchor_offset {
 				if let Some(rel_offset) = self.abs_to_rel_offset(anchor_offset) {
@@ -118,7 +118,7 @@ impl LogStoreLinear {
 						for i in 1..self.visible_lines {
 							//Note: The last element points to itself, so it's safe in all cases
 							abs_offset = self.store[abs_offset].next_offset as usize;
-							
+
 							if anchor_offset >= prev_offset && anchor_offset <= abs_offset {
 								rel_offset = Some(i);
 								break;
@@ -131,20 +131,23 @@ impl LogStoreLinear {
 						(anchor_offset, rel_offset)
 					} else {
 						//Fallback: Align to the middle of the screen
-						(anchor_offset, (std::cmp::max(1, self.visible_lines)-1)/2)
+						(
+							anchor_offset,
+							(std::cmp::max(1, self.visible_lines) - 1) / 2,
+						)
 					}
 				}
 			} else if self.entry_count >= self.visible_lines {
 				if let Some(mut abs_offset) = self.rel_to_abs_offset(0) {
 					//Got top visible line; now advance anchor by half the visible lines
-					let rel_offset = (std::cmp::max(1, self.visible_lines)-1)/2;
+					let rel_offset = (std::cmp::max(1, self.visible_lines) - 1) / 2;
 					for _ in 0..rel_offset {
 						//Note: The last element points to itself, so it's safe in all cases
 						abs_offset = self.store[abs_offset].next_offset as usize;
 					}
 					(abs_offset, rel_offset)
 				} else {
-					(0,0)
+					(0, 0)
 				}
 			} else {
 				//No anchor; less elements in store than viewport size; just reset to zero
@@ -202,7 +205,7 @@ impl LogStoreLinear {
 			self.store[self.first_offset].prev_offset = self.first_offset as u32;
 			//First element points to itself
 		}
-		
+
 		if self.store.len() > 0 && self.store[tmp_anchor_offset].is_visible() {
 			self.viewport_offset = tmp_anchor_offset;
 			self.scroll(-(rel_offset as i64), self.visible_lines);
@@ -216,7 +219,7 @@ impl LogStoreLinear {
 				.filter(|(_, x)| x.is_visible())
 				.take(1)
 			{
-				self.viewport_offset = offset; 
+				self.viewport_offset = offset;
 				found = true;
 			}
 			if !found {
@@ -243,12 +246,13 @@ impl LogStoreLinear {
 
 		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
 		for (offset, _) in self
-				.store
-				.iter()
-				.enumerate()
-				.skip(std::cmp::max(1, entry_id as usize) - 1)
-				.filter(|(_, x)| x.is_visible() && x.entry_id == entry_id)
-				.take(1) {
+			.store
+			.iter()
+			.enumerate()
+			.skip(std::cmp::max(1, entry_id as usize) - 1)
+			.filter(|(_, x)| x.is_visible() && x.entry_id == entry_id)
+			.take(1)
+		{
 			return Some(offset);
 		}
 
@@ -291,7 +295,8 @@ impl LogStoreLinear {
 				return false; //no scrolling down if window larger than number of rows
 			}
 			while abs_lines > 0 {
-				if (self.entry_count - window_size) <= self.store[self.viewport_offset].entry_id as usize
+				if (self.entry_count - window_size)
+					<= self.store[self.viewport_offset].entry_id as usize
 				{
 					break; //stop scrolling down, bottomed out window
 				}

@@ -78,8 +78,8 @@ impl GlogParser {
 							"s" => GlogSectionKind::Severity,
 							"i" => GlogSectionKind::LogSource, //controller only
 							"m" => GlogSectionKind::Message,
-							"e" => GlogSectionKind::ErrorCode, //sensor only
-							"n" => GlogSectionKind::SessionId, //sensor only
+							"e" => GlogSectionKind::ErrorCode,      //sensor only
+							"n" => GlogSectionKind::SessionId,      //sensor only
 							"t" => GlogSectionKind::Timestamp100ns, //sensor only
 							_ => {
 								//TODO: Notify of invalid kind?
@@ -196,10 +196,14 @@ impl GlogParser {
 									if let Some(ndt) =
 										NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
 									{
-										self.log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+										self.log_entry.timestamp =
+											DateTime::<Utc>::from_utc(ndt, Utc);
 									} else {
 										//TODO: Notify of invalid datetime?
-										println!("MALFORMED Log 100ns stamp datetime: {}", value_str);
+										println!(
+											"MALFORMED Log 100ns stamp datetime: {}",
+											value_str
+										);
 									}
 								} else {
 									//TODO: Notify of invalid offset?
@@ -228,10 +232,10 @@ impl GlogParser {
 						);
 						if let Some(sub_source) = self.sub_source {
 							//Log entry specified a log sub-source
-							
+
 							//Note: We don't actually use QNX log source IDs properly
 							//All we do is prepend source string name, plus colon and space
-							
+
 							let offset = log_entry.message.find(": ");
 							let source_name = if let Some(offset) = offset {
 								let name_slice = &log_entry.message[0..offset];
@@ -242,8 +246,9 @@ impl GlogParser {
 								}
 							} else {
 								None
-							}.unwrap_or(std::borrow::Cow::from(format!("Unknown ({})", sub_source)));
-							
+							}
+							.unwrap_or(std::borrow::Cow::from(format!("Unknown ({})", sub_source)));
+
 							let source_option = self.log_sources.get_mut(source_name.as_ref());
 							if let Some(source) = source_option {
 								//Log sub-source exists, push log entry
@@ -315,26 +320,26 @@ impl GlogParser {
 				self.read_byte(b'[');
 			}
 		};
-		
+
 		if self.log_sources.is_empty() {
 			//If no log message specified a source, we put the entries directly into the root
 			self.root.children = model::LogSourceContents::Entries(self.log_entries);
 		} else {
-			let mut v = Vec::<model::LogSource>::with_capacity(self.log_sources.len() + !self.log_entries.is_empty() as usize);
+			let mut v = Vec::<model::LogSource>::with_capacity(
+				self.log_sources.len() + !self.log_entries.is_empty() as usize,
+			);
 			for (_, sub_source) in self.log_sources {
 				v.push(sub_source);
 			}
-			
+
 			if !self.log_entries.is_empty() {
 				let sub_source = model::LogSource {
 					name: "Unknown (None)".to_string(),
-					children: {
-						model::LogSourceContents::Entries(self.log_entries)
-					},
+					children: { model::LogSourceContents::Entries(self.log_entries) },
 				};
 				v.push(sub_source);
 			}
-			
+
 			//Case insensitive sort by log source name
 			v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 			self.root.children = model::LogSourceContents::Sources(v);

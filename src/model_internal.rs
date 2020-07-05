@@ -9,6 +9,7 @@ pub const VISIBLE_OFF_SOURCE: u8 = 0x1;
 pub const VISIBLE_OFF_SEVERITY: u8 = 0x2;
 pub const VISIBLE_OFF_FILTER: u8 = 0x4;
 
+#[rustfmt::skip]
 pub struct LogEntryExt {
 	pub timestamp: chrono::DateTime<Utc>,
 	pub severity: model::LogLevel,

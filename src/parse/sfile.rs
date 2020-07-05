@@ -4,8 +4,8 @@ use super::super::model;
 use super::glog;
 use super::xlog;
 
-use std::mem;
 use std::collections::HashMap;
+use std::mem;
 
 static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
 
@@ -40,7 +40,9 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 					//println!("XLOG: {}", &stem);
 					let root = model::LogSource {
 						name: stem.to_string(),
-						children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+						children: {
+							model::LogSourceContents::Entries(Vec::<model::LogEntry>::new())
+						},
 					};
 					client_child_sources.push(xlog::to_log_entries(file, root));
 				}
@@ -48,7 +50,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			}
 		}
 	}
-	
+
 	//Arrange Client logs into their respective channels
 	let mut client_log_sources = HashMap::<String, model::LogSource>::new();
 	for file_source in client_child_sources {
@@ -58,7 +60,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		} else {
 			"Unknown"
 		};
-		
+
 		let source_option = client_log_sources.get_mut(channel_name);
 		if let Some(source) = source_option {
 			//Log sub-source exists, push contents
@@ -94,9 +96,8 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	for (_, sub_source) in client_log_sources {
 		client_child_sources.push(sub_source);
 	}
-	
+
 	//client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-	
 
 	//Merge numbered files together (e.g. contr_ProcessManager and contr_ProcessManager_1)
 	//Note: The number was already stripped with strip_suffix.
@@ -185,7 +186,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		//Unknown logs
 		unknown_child_sources.push(source);
 	}
-	
+
 	//Case insensitive sort by log source name
 	contr_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -257,7 +258,9 @@ impl<'a, R: std::io::Read + std::io::Seek> std::io::Read for ConcatZipReader<'a,
 					Some(idx) => {
 						//Need to open new file
 						let f = if let Some(password) = SFILE_PASSWORD {
-							self.archive.by_index_decrypt(idx, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
+							self.archive
+								.by_index_decrypt(idx, password.as_bytes())
+								.unwrap() //TODO: 21.06.2020: Handle ZipError!
 						} else {
 							self.archive.by_index(idx).unwrap() //TODO: 21.06.2020: Handle ZipError!
 						};

@@ -140,14 +140,18 @@ fn toggle_row(
 					.get::<String>()
 					.unwrap()
 					.unwrap();
-				
+
 				println!("{}", n_text);*/
 				let n_active = tree_store
 					.get_value(&iter, LogSourcesColumns::Active as i32)
 					.get_some::<bool>()
 					.unwrap();
 				if n_active != active {
-					tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &active.to_value());
+					tree_store.set_value(
+						&iter,
+						LogSourcesColumns::Active as u32,
+						&active.to_value(),
+					);
 				}
 				let n_id = tree_store
 					.get_value(&iter, LogSourcesColumns::Id as i32)
@@ -160,7 +164,7 @@ fn toggle_row(
 					LogSourcesColumns::Inconsistent as u32,
 					&false.to_value(),
 				);
-				
+
 				activate_children(tree_store, &iter, active, sources);
 				if !tree_store.iter_next(&iter) {
 					break;
@@ -174,7 +178,7 @@ fn toggle_row(
 		.get_some::<u32>()
 		.unwrap();
 	sources.push(id);
-	
+
 	let now = Instant::now();
 	activate_children(tree_store, &iter, active, &mut sources);
 	let elapsed = now.elapsed();
@@ -182,7 +186,7 @@ fn toggle_row(
 		"Time to activate children: {}ms",
 		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 	);
-	
+
 	//println!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
 
 	let mut ordered = true;
@@ -266,7 +270,8 @@ fn draw(
 	ctx.set_source_rgb(0.0, 0.0, 0.0);
 
 	store.line_spacing = f64::max(store.line_spacing, store.font_size + 2.0); //prevent overlapping lines with large font
-	store.visible_lines = (f64::max(0.0, (h as f64) - store.border_top - store.border_bottom) / store.line_spacing) as usize;
+	store.visible_lines = (f64::max(0.0, (h as f64) - store.border_top - store.border_bottom)
+		/ store.line_spacing) as usize;
 
 	if store.store.len() < store.visible_lines {
 		//No scrolling possible, less entries than rows on GUI!
@@ -274,12 +279,12 @@ fn draw(
 	} else if store.viewport_offset > store.store.len() - store.visible_lines {
 		store.viewport_offset = store.store.len() - store.visible_lines;
 	}
-	
+
 	//-----------------------------------------------------------------------------
 	//Draw loop
 	//-----------------------------------------------------------------------------
 	let mut anchor_drawn = false;
-	
+
 	for (i, (offset, entry)) in store
 		.store
 		.iter()
@@ -287,8 +292,8 @@ fn draw(
 		.skip(store.viewport_offset)
 		.filter(|(_, x)| x.is_visible())
 		.take(store.visible_lines)
-		.enumerate() //index of filtered element
-		
+		//index of filtered element:
+		.enumerate()
 	{
 		ctx.select_font_face(
 			"Lucida Console", //"Calibri"
@@ -296,16 +301,19 @@ fn draw(
 			cairo::FontWeight::Normal,
 		);
 		ctx.set_font_size(store.font_size);
-		
+
 		let mut draw_highlight = false;
 		if Some(i) == store.hover_line {
 			ctx.set_source_rgb(0.8, 0.8, 0.8);
 			draw_highlight = true;
 		}
-		
-		if (store.selected_single.contains(&offset) ||
-		(store.selected_range.is_some() && store.selected_range.unwrap().0 <= offset && store.selected_range.unwrap().1 >= offset))
-		&& !store.excluded_single.contains(&offset) {
+
+		if (store.selected_single.contains(&offset)
+			|| (store.selected_range.is_some()
+				&& store.selected_range.unwrap().0 <= offset
+				&& store.selected_range.unwrap().1 >= offset))
+			&& !store.excluded_single.contains(&offset)
+		{
 			if draw_highlight {
 				//Cumulative: Row is selected and hovered over
 				ctx.set_source_rgb(0.7, 0.7, 1.0);
@@ -314,7 +322,7 @@ fn draw(
 			}
 			draw_highlight = true;
 		}
-		
+
 		if draw_highlight {
 			ctx.rectangle(
 				0.0,
@@ -345,8 +353,10 @@ fn draw(
 				ctx.set_source_rgb(0.4, 0.4, 0.4);
 			} //Light grey
 		}
-		
-		let offset_y = store.border_top + store.line_spacing * i as f64 + f64::max(0.0, store.line_spacing - store.font_size)/2.0;
+
+		let offset_y = store.border_top
+			+ store.line_spacing * i as f64
+			+ f64::max(0.0, store.line_spacing - store.font_size) / 2.0;
 		//Anchor point of text is bottom left, excluding descent.
 		//We want to anchor on top left though, so calculate that away:
 		let font_offset_y = offset_y + store.font_size - ctx.font_extents().descent;
@@ -366,20 +376,26 @@ fn draw(
 
 		ctx.move_to(store.border_left + 180.0, font_offset_y);
 		ctx.show_text(&short_sev);
-		
+
 		if let Some(anchor_offset) = store.anchor_offset {
 			if offset == anchor_offset {
 				ctx.move_to(store.border_left - 20.0, font_offset_y);
-				ctx.show_text(&"→");//TODO: Replace with anchor symbol
+				ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 				anchor_drawn = true;
 			} else if !anchor_drawn {
 				if offset >= anchor_offset {
-					ctx.move_to(store.border_left - 20.0, font_offset_y - store.line_spacing/2.0);
-					ctx.show_text(&"→");//TODO: Replace with anchor symbol
+					ctx.move_to(
+						store.border_left - 20.0,
+						font_offset_y - store.line_spacing / 2.0,
+					);
+					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
-				} else if i == store.visible_lines-1 || offset == store.last_offset {
-					ctx.move_to(store.border_left - 20.0, font_offset_y + store.line_spacing/2.0);
-					ctx.show_text(&"→");//TODO: Replace with anchor symbol
+				} else if i == store.visible_lines - 1 || offset == store.last_offset {
+					ctx.move_to(
+						store.border_left - 20.0,
+						font_offset_y + store.line_spacing / 2.0,
+					);
+					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
 				}
 			}
@@ -390,9 +406,9 @@ fn draw(
 		/*let font_face = ctx.get_font_face();
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
 		ctx.set_font_face(&new_font_face);*/
-		
+
 		ctx.show_text(&entry.message);
-		
+
 		/*if let Some(source_name) = store.log_sources.get(&entry.source_id) {
 			ctx.move_to(store.border_left + 210.0, font_offset_y + store.font_size);
 			ctx.set_font_size(f64::round(store.font_size * 0.7));
@@ -512,15 +528,14 @@ fn handle_evt_press(
 		store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
 		store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
 		store.hover_line = None;
-	} else {	
+	} else {
 		if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
 		} else {
 			let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
 			if line >= store.visible_lines {
-			}
-			else {
+			} else {
 				let clicked_line = store.rel_to_abs_offset(line);
-				
+
 				if let Some(clicked_line_val) = clicked_line {
 					if !store.pressed_shift && !store.pressed_ctrl {
 						store.selected_single.clear();
@@ -563,7 +578,7 @@ fn handle_evt_press(
 						store.selected_range = None;
 					}
 				}
-				
+
 				if clicked_line != store.anchor_offset {
 					store.anchor_offset = clicked_line;
 					println!("SET NEW anchor: {:?}", store.anchor_offset);
@@ -572,7 +587,7 @@ fn handle_evt_press(
 			}
 		}
 	}
-	
+
 	gtk::Inhibit(false)
 }
 
@@ -613,26 +628,27 @@ fn handle_evt_motion(
 			.unwrap_or(0);
 		println!("MOTION {:?}", evt.get_position());
 		drawing_area.queue_draw();
-	} else {	
+	} else {
 		let current_hover = {
 			if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
 				None
 			} else {
-				let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+				let line =
+					((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
 				if line >= store.visible_lines {
 					None
-				}
-				else {
+				} else {
 					Some(line)
 				}
 			}
 		};
-		
+
 		if current_hover != store.hover_line {
 			if let Some(line) = current_hover {
 				if let Some(hover_entry) = store.rel_to_abs_offset(line) {
 					if let Some(anchor) = store.anchor_offset {
-						let timediff = store.store[hover_entry].timestamp - store.store[anchor].timestamp;
+						let timediff =
+							store.store[hover_entry].timestamp - store.store[anchor].timestamp;
 						let mut timediff_ms = i64::abs(timediff.num_milliseconds());
 						let days = timediff_ms / 86_400_000;
 						timediff_ms -= days * 86_400_000;
@@ -648,7 +664,10 @@ fn handle_evt_motion(
 						} else {
 							'+'
 						};
-						let text = format!("{}{}D {:02}:{:02}:{:02}.{:03}", sign, days, hours, minutes, seconds, milliseconds);
+						let text = format!(
+							"{}{}D {:02}:{:02}:{:02}.{:03}",
+							sign, days, hours, minutes, seconds, milliseconds
+						);
 						timediff_entry.set_text(&text);
 					}
 				}
@@ -661,7 +680,7 @@ fn handle_evt_motion(
 			drawing_area.queue_draw();
 		}
 	}
-	
+
 	gtk::Inhibit(false)
 }
 
@@ -767,14 +786,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	//---------------------------------------------------------------------------------------
 
-	let mut dialog_vec : Vec::<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
-	
+	let mut dialog_vec: Vec<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
+
 	println!("{:?}", file_paths);
 	let log_source_root = if !file_paths.is_empty() {
 		if file_paths.len() > 1 {
 			println!("WARNING: Multiple files opened, ignoring all but the first one.");
 		}
-		
+
 		let now = Instant::now();
 		let root = parse::from_file(&file_paths[0]);
 		let elapsed = now.elapsed();
@@ -782,23 +801,20 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			"Time to parse file: {}ms",
 			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 		);
-		
+
 		match root {
-			Ok(root) => {
-				root
-			},
+			Ok(root) => root,
 			Err(err) => {
 				let error_str = format!("Error: {}", err);
-				dialog_vec.push(
-					gtk::MessageDialog::new(
-						Some(&window),
-						gtk::DialogFlags::empty(),
-						gtk::MessageType::Error,
-						gtk::ButtonsType::Ok,
-						&error_str)
-					);
+				dialog_vec.push(gtk::MessageDialog::new(
+					Some(&window),
+					gtk::DialogFlags::empty(),
+					gtk::MessageType::Error,
+					gtk::ButtonsType::Ok,
+					&error_str,
+				));
 				log_source_root
-			},
+			}
 		}
 	} else {
 		log_source_root
@@ -812,24 +828,24 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		first_offset: 0,
 		last_offset: 0,
 		anchor_offset: None,
-		
+
 		show_crit: true,
 		show_err: true,
 		show_warn: true,
 		show_info: true,
 		show_dbg: true,
 		show_trace: true,
-		
+
 		selected_single: std::collections::HashSet::new(),
 		excluded_single: std::collections::HashSet::new(),
 		selected_single_last: None,
 		selected_range: None,
-		
+
 		pressed_shift: false,
 		pressed_ctrl: false,
-		
+
 		log_sources: std::collections::HashMap::<u32, String>::new(),
-		
+
 		visible_lines: 0,
 		hover_line: None,
 		viewport_offset: 0,
@@ -837,13 +853,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		thumb_drag: false,
 		thumb_drag_x: 0.0,
 		thumb_drag_y: 0.0,
-			
+
 		border_left: 30.0,
 		border_top: 10.0,
 		border_bottom: 10.0,
 		line_spacing: 20.0,
 		font_size: 14.0,
-		
+
 		scroll_bar: ScrollBarVert {
 			x: 0.0,
 			y: 0.0,
@@ -937,16 +953,18 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
-		
+
 		{
 			sources_tree_view.append_column(&column);
-			sources_tree_view.set_property("activate-on-single-click", &true).unwrap();
+			sources_tree_view
+				.set_property("activate-on-single-click", &true)
+				.unwrap();
 			//connect_row_activated<F: Fn(&Self, &TreePath, &TreeViewColumn)
 			//sources_tree_view.connect_row_activated(|tree_view, path, column| { println!("row-activated\n{:?}\n{:?}\n{:?}", tree_view, path.get_indices(), column) } ); //TODO: Hook up row-activated event
 			//https://gtk-rs.org/docs/gtk/trait.TreeViewExt.html
-			
+
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
-			//let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
+										   //let model_sort_clone = left_store_sort.clone(); //GTK objects are refcounted, just clones ref
 			let drawing_area_clone = drawing_area.clone(); //GTK objects are refcounted, just clones ref
 			let store_rc_clone = store_rc.clone();
 			sources_tree_view.connect_row_activated(move |_tree_view, path, _column| {
@@ -954,10 +972,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 					&left_store_clone,
 					&mut store_rc_clone.borrow_mut(),
 					&drawing_area_clone,
-					path.clone()
+					path.clone(),
 				)
 			});
-			
 		}
 	}
 
@@ -1015,7 +1032,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	//sources_tree_view.expand_all();
 
 	let split_pane = gtk::Paned::new(Orientation::Horizontal);
-	
+
 	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::NONE_ADJUSTMENT, gtk::NONE_ADJUSTMENT);
 	scrolled_window_left
 		.set_property("overlay-scrolling", &false)
@@ -1025,13 +1042,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	scrolled_window_left.add(&sources_tree_view);
 
 	let split_pane_left = gtk::Box::new(Orientation::Vertical, 10);
-	
+
 	fn severity_toggle(
 		w: &gtk::CheckButton,
 		store: &mut LogStoreLinear,
 		severity: model::LogLevel,
 		drawing_area: &gtk::DrawingArea,
-		) {
+	) {
 		println!("Active: {} ({:?})", w.get_active(), severity);
 		store.filter_store(
 			&|entry: &LogEntryExt| entry.severity == severity,
@@ -1040,12 +1057,12 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		);
 		drawing_area.queue_draw();
 	}
-	
+
 	split_pane_left.pack_start(&scrolled_window_left, true, true, 0);
 	{
 		let check_btn = gtk::CheckButton::new_with_label("Critical");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1053,13 +1070,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Critical,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Error");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1067,13 +1085,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Error,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Warning");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1081,13 +1100,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Warning,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Info");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1095,13 +1115,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Info,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Debug");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1109,13 +1130,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Debug,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 		let check_btn = gtk::CheckButton::new_with_label("Trace");
 		check_btn.set_active(true);
-		
+
 		let store_rc_clone = store_rc.clone();
 		let drawing_area_clone = drawing_area.clone();
 		check_btn.connect_clicked(move |w| {
@@ -1123,17 +1145,18 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				w,
 				&mut store_rc_clone.borrow_mut(),
 				model::LogLevel::Trace,
-				&drawing_area_clone);
+				&drawing_area_clone,
+			);
 		});
-		
+
 		split_pane_left.pack_start(&check_btn, false, false, 0);
 	}
-	
+
 	fn search_changed(
 		w: &gtk::SearchEntry,
 		store: &mut LogStoreLinear,
 		drawing_area: &gtk::DrawingArea,
-		) {
+	) {
 		let search_text = w.get_text().unwrap().as_str().to_string();
 		if search_text == "" {
 			println!("Search empty");
@@ -1157,19 +1180,16 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 		drawing_area.queue_draw();
 	}
-	
+
 	let search_entry = gtk::SearchEntry::new();
 	let store_rc_clone = store_rc.clone();
 	let drawing_area_clone = drawing_area.clone();
 	search_entry.connect_search_changed(move |w| {
-		search_changed(
-			w,
-			&mut store_rc_clone.borrow_mut(),
-			&drawing_area_clone);
+		search_changed(w, &mut store_rc_clone.borrow_mut(), &drawing_area_clone);
 	});
-	
+
 	split_pane_left.pack_start(&search_entry, false, false, 0);
-	
+
 	let timediff_entry = gtk::Entry::new();
 	timediff_entry.set_editable(false);
 	timediff_entry.set_alignment(1.0); //1.0 is right-aligned
@@ -1203,8 +1223,12 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	println!("before build_log_store");
 	let now = Instant::now();
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
-	
-	fn build_log_sources(log_sources: &mut std::collections::HashMap<u32, String>, log_source: &LogSourceExt, prefix: String) {
+
+	fn build_log_sources(
+		log_sources: &mut std::collections::HashMap<u32, String>,
+		log_source: &LogSourceExt,
+		prefix: String,
+	) {
 		let current_name = String::new() + &prefix + &"/" + &log_source.name;
 		log_sources.insert(log_source.id, current_name.clone());
 		match &log_source.children {
@@ -1213,11 +1237,15 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 					build_log_sources(log_sources, source, current_name.clone());
 				}
 			}
-			LogSourceContentsExt::Entries(_) => ()
+			LogSourceContentsExt::Entries(_) => (),
 		}
 	}
-	
-	build_log_sources(&mut store_rc.borrow_mut().log_sources, &mut log_source_root_ext, String::new());
+
+	build_log_sources(
+		&mut store_rc.borrow_mut().log_sources,
+		&mut log_source_root_ext,
+		String::new(),
+	);
 
 	store_rc
 		.borrow_mut()
@@ -1258,9 +1286,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.borrow_mut(), x, y));
 
 	let f_clone_3 = store_rc.clone();
-	drawing_area.connect_scroll_event(move |x, y| {
-		handle_evt_scroll(&mut f_clone_3.borrow_mut(), x, y)
-	});
+	drawing_area
+		.connect_scroll_event(move |x, y| handle_evt_scroll(&mut f_clone_3.borrow_mut(), x, y));
 
 	let f_clone_4 = store_rc.clone();
 	drawing_area.connect_button_press_event(move |x, y| {
@@ -1278,7 +1305,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	});
 
 	split_pane.pack2(&drawing_area, true, false);
-	
+
 	//https://gtk-rs.org/docs/gdk/enums/key/index.html
 	//println!("CODES: {} {} {} {}", gdk::enums::key::Control_L, gdk::enums::key::Control_R, gdk::enums::key::Shift_L, gdk::enums::key::Shift_R);
 	/*You should place GtkDrawArea in GtkEventBox and then doing all that stuff from GtkEventBox. As far as I remember, this is happening because there are not these events for GtkDrawArea. One in stackoverflow explained that, but only with GtkImage. I know, that GtkDrawArea in GtkEventBox works, because I am currently writing app that uses it (app is in c, but it should work for c++ too).
@@ -1286,64 +1313,84 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	{
 		let store_rc_clone = store_rc.clone();
 		window.connect_key_press_event(move |_window, event_key| {
-			println!("KEY PRESSED! {} {}", event_key.get_keyval(), event_key.get_hardware_keycode());
-			if event_key.get_keyval() == gdk::enums::key::Control_L || event_key.get_keyval() == gdk::enums::key::Control_R {
+			println!(
+				"KEY PRESSED! {} {}",
+				event_key.get_keyval(),
+				event_key.get_hardware_keycode()
+			);
+			if event_key.get_keyval() == gdk::enums::key::Control_L
+				|| event_key.get_keyval() == gdk::enums::key::Control_R
+			{
 				store_rc_clone.borrow_mut().pressed_ctrl = true;
 			}
-			if event_key.get_keyval() == gdk::enums::key::Shift_L || event_key.get_keyval() == gdk::enums::key::Shift_R {
+			if event_key.get_keyval() == gdk::enums::key::Shift_L
+				|| event_key.get_keyval() == gdk::enums::key::Shift_R
+			{
 				store_rc_clone.borrow_mut().pressed_shift = true;
 			}
-			if event_key.get_keyval() == gdk::enums::key::c && store_rc_clone.borrow().pressed_ctrl {
+			if event_key.get_keyval() == gdk::enums::key::c && store_rc_clone.borrow().pressed_ctrl
+			{
 				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
-				
+
 				//TODO: 13.04.2020: Can optimize this, use some sort of string stream
 				let mut clip_string = std::string::String::new();
-				
+
 				//TODO: 13.04.2020: Can optimize this, do not go through entire store
-				for (offset, entry) in store_rc_clone.borrow()
+				for (offset, entry) in store_rc_clone
+					.borrow()
 					.store
 					.iter()
 					.enumerate() //offset in vector
-					.filter(|(_, x)| x.is_visible()) {
-					
+					.filter(|(_, x)| x.is_visible())
+				{
 					//TODO: 13.04.2020: Clean up all these borrows.
-					if (store_rc_clone.borrow().selected_single.contains(&offset) ||
-						(store_rc_clone.borrow().selected_range.is_some() && store_rc_clone.borrow().selected_range.unwrap().0 <= offset && store_rc_clone.borrow().selected_range.unwrap().1 >= offset))
-						&& !store_rc_clone.borrow().excluded_single.contains(&offset) {
-							//TODO: 13.04.2020: Also add log source name to string!
-							clip_string += &entry.timestamp.format("%d-%m-%y %T%.6f").to_string();
-							clip_string += &" | ";
-							clip_string += &entry.message;
-							clip_string += &"\r\n"; //TODO: 13.04.2020: Windows vs Linux file endings?
+					if (store_rc_clone.borrow().selected_single.contains(&offset)
+						|| (store_rc_clone.borrow().selected_range.is_some()
+							&& store_rc_clone.borrow().selected_range.unwrap().0 <= offset
+							&& store_rc_clone.borrow().selected_range.unwrap().1 >= offset))
+						&& !store_rc_clone.borrow().excluded_single.contains(&offset)
+					{
+						//TODO: 13.04.2020: Also add log source name to string!
+						clip_string += &entry.timestamp.format("%d-%m-%y %T%.6f").to_string();
+						clip_string += &" | ";
+						clip_string += &entry.message;
+						clip_string += &"\r\n"; //TODO: 13.04.2020: Windows vs Linux file endings?
 					}
 				}
 				clipboard.set_text(&clip_string);
 			}
 			gtk::Inhibit(false)
-		} );
+		});
 	}
 	{
 		let store_rc_clone = store_rc.clone();
 		window.connect_key_release_event(move |_window, event_key| {
-			println!("KEY RELEASED! {} {}", event_key.get_keyval(), event_key.get_hardware_keycode());
-			if event_key.get_keyval() == gdk::enums::key::Control_L || event_key.get_keyval() == gdk::enums::key::Control_R {
+			println!(
+				"KEY RELEASED! {} {}",
+				event_key.get_keyval(),
+				event_key.get_hardware_keycode()
+			);
+			if event_key.get_keyval() == gdk::enums::key::Control_L
+				|| event_key.get_keyval() == gdk::enums::key::Control_R
+			{
 				store_rc_clone.borrow_mut().pressed_ctrl = false;
 			}
-			if event_key.get_keyval() == gdk::enums::key::Shift_L || event_key.get_keyval() == gdk::enums::key::Shift_R {
+			if event_key.get_keyval() == gdk::enums::key::Shift_L
+				|| event_key.get_keyval() == gdk::enums::key::Shift_R
+			{
 				store_rc_clone.borrow_mut().pressed_shift = false;
 			}
 			gtk::Inhibit(false)
-		} );
+		});
 	}
 
 	window.add(&split_pane);
 	window.show_all();
-	
+
 	for dialog in dialog_vec {
 		dialog.run();
 		dialog.destroy();
 	}
-	
 }
 
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
