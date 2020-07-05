@@ -22,7 +22,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 				let unit_header = &unit[0..offset];
 				let unit_value = &unit[offset + 2..]; //Note: +2 because '˩' is 2 Byte in UTF-8
 
-				match unit_header.as_ref() {
+				match unit_header {
 					"<T>" => {
 						if let Ok(mut ts_100ns) = unit_value.parse::<u64>() {
 							// 100-nanosecond offset from 0000-01-01 00:00:00.000 to 1970-01-01 00:00:00.000
@@ -80,7 +80,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 
 #[rustfmt::skip]
 fn normalize_xlog_sev(xlog_sev: XlogSeverity) -> model::LogLevel {
-	return match xlog_sev {
+	match xlog_sev {
 		XlogSeverity::AppStart  => model::LogLevel::Info, //loss of information!
 		XlogSeverity::AppStop   => model::LogLevel::Info, //loss of information!
 		XlogSeverity::Info      => model::LogLevel::Info,
@@ -88,7 +88,7 @@ fn normalize_xlog_sev(xlog_sev: XlogSeverity) -> model::LogLevel {
 		XlogSeverity::Error     => model::LogLevel::Error,
 		XlogSeverity::Exception => model::LogLevel::Error, //loss of information!
 		XlogSeverity::Debug     => model::LogLevel::Debug,
-	};
+	}
 }
 
 enum XlogSeverity {

@@ -52,7 +52,7 @@ impl GlogParser {
 			log_entries: Vec::<model::LogEntry>::new(),
 			log_sources: HashMap::<String, model::LogSource>::new(),
 			invalid_bytes: 0,
-			root: root,
+			root,
 		}
 	}
 
@@ -73,7 +73,7 @@ impl GlogParser {
 					let kind_str = std::str::from_utf8(&self.buf);
 
 					let kind = if let Ok(kind_str) = kind_str {
-						match kind_str.as_ref() {
+						match kind_str {
 							"tq" => GlogSectionKind::TimestampMs, //controller only
 							"s" => GlogSectionKind::Severity,
 							"i" => GlogSectionKind::LogSource, //controller only
@@ -247,7 +247,9 @@ impl GlogParser {
 							} else {
 								None
 							}
-							.unwrap_or(std::borrow::Cow::from(format!("Unknown ({})", sub_source)));
+							.unwrap_or_else(|| {
+								std::borrow::Cow::from(format!("Unknown ({})", sub_source))
+							});
 
 							let source_option = self.log_sources.get_mut(source_name.as_ref());
 							if let Some(source) = source_option {
@@ -360,14 +362,14 @@ enum GlogParserState {
 }
 
 fn normalize_glog_sev(glog_sev: GlogSeverity) -> model::LogLevel {
-	return match glog_sev {
+	match glog_sev {
 		GlogSeverity::Critical => model::LogLevel::Critical,
 		GlogSeverity::Hardware => model::LogLevel::Critical,
 		GlogSeverity::Error => model::LogLevel::Error,
 		GlogSeverity::Warning => model::LogLevel::Warning,
 		GlogSeverity::Info => model::LogLevel::Info,
 		GlogSeverity::None => model::LogLevel::Critical,
-	};
+	}
 }
 
 enum GlogSeverity {

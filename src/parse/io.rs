@@ -52,7 +52,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, LogParse
 				Ok(glog::to_log_entries(file, root))
 			}
 			// ../logfiles/logfile1.sfile
-			"sfile" | "lfile" => sfile::from_file(&path).map_err(|e| LogParseError::IoError(e)),
+			"sfile" | "lfile" => sfile::from_file(&path).map_err(LogParseError::IoError),
 			//TODO: Implement heuristic, more file types
 			_ => Err(LogParseError::UnrecognizedFileExtension(
 				extension.to_os_string(),

@@ -73,7 +73,7 @@ impl LogSourceExt {
 			name: log_source.name,
 			id: 0,
 			child_cnt: 0,
-			children: children,
+			children,
 		};
 		source_ext.generate_ids();
 		source_ext.calc_child_cnt();

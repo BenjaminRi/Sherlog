@@ -54,7 +54,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	//Arrange Client logs into their respective channels
 	let mut client_log_sources = HashMap::<String, model::LogSource>::new();
 	for file_source in client_child_sources {
-		let split_name = file_source.name.split("_");
+		let split_name = file_source.name.split('_');
 		let channel_name = if let Some(channel) = split_name.skip(2).take(1).next() {
 			channel
 		} else {
@@ -160,7 +160,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			//W
 			{
 				if sensor_child_sources.is_empty()
-					|| !(sensor_child_sources.last().unwrap().name == board_name)
+					|| sensor_child_sources.last().unwrap().name != board_name
 				{
 					let board_name_string = board_name.to_string();
 					source.name = log_name.to_string();
@@ -232,9 +232,9 @@ impl<'a, R: std::io::Read + std::io::Seek> ConcatZipReader<'a, R> {
 		indices: std::collections::VecDeque<usize>,
 	) -> ConcatZipReader<'a, R> {
 		ConcatZipReader {
-			archive: archive,
+			archive,
 			file: None,
-			indices: indices,
+			indices,
 		}
 	}
 }
@@ -306,7 +306,7 @@ fn strip_suffix(s: &mut String) {
 	s.truncate(s.len() - storage_type.len());
 
 	if let Some(offset) = s.rfind('_') {
-		if let Ok(_) = &s[offset + 1..s.len()].parse::<u32>() {
+		if s[offset + 1..s.len()].parse::<u32>().is_ok() {
 			//Numbered logfile. Discard ring buffer index.
 			s.truncate(offset);
 		}

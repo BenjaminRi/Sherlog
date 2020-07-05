@@ -1,6 +1,7 @@
 extern crate chrono;
 
 use chrono::prelude::*;
+use std::fmt;
 
 #[allow(dead_code)]
 #[derive(Debug, PartialEq)]
@@ -13,17 +14,20 @@ pub enum LogLevel {
 	Trace,
 }
 
-impl LogLevel {
-	#[allow(dead_code)]
-	pub fn to_string(&self) -> String {
-		match self {
-			LogLevel::Critical => "Critical".to_string(),
-			LogLevel::Error => "Error".to_string(),
-			LogLevel::Warning => "Warning".to_string(),
-			LogLevel::Info => "Info".to_string(),
-			LogLevel::Debug => "Debug".to_string(),
-			LogLevel::Trace => "Trace".to_string(),
-		}
+impl fmt::Display for LogLevel {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(
+			f,
+			"{}",
+			match self {
+				LogLevel::Critical => "Critical",
+				LogLevel::Error => "Error",
+				LogLevel::Warning => "Warning",
+				LogLevel::Info => "Info",
+				LogLevel::Debug => "Debug",
+				LogLevel::Trace => "Trace",
+			}
+		)
 	}
 }
 

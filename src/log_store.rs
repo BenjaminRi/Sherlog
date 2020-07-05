@@ -68,6 +68,7 @@ pub struct LogStoreLinear {
 
 impl LogStoreLinear {
 	pub fn rel_to_abs_offset(&self, rel_offset: usize) -> Option<usize> {
+		#[allow(clippy::never_loop)]
 		for (offset, _) in self
 			.store
 			.iter()
@@ -79,7 +80,7 @@ impl LogStoreLinear {
 		{
 			return Some(offset);
 		}
-		return None;
+		None
 	}
 
 	pub fn abs_to_rel_offset(&self, abs_offset: usize) -> Option<usize> {
@@ -97,7 +98,7 @@ impl LogStoreLinear {
 				return Some(i);
 			}
 		}
-		return None;
+		None
 	}
 
 	//pub fn filter_store(&mut self, filter : |&LogEntryExt| -> bool, active: bool) {
@@ -201,12 +202,12 @@ impl LogStoreLinear {
 
 		self.entry_count = next_entry_id as usize; //Conveniently, we can use this as number of elements
 		self.first_offset = dummy.next_offset as usize; //The element after the dummy is the first real element
-		if self.store.len() > 0 {
+		if !self.store.is_empty() {
 			self.store[self.first_offset].prev_offset = self.first_offset as u32;
 			//First element points to itself
 		}
 
-		if self.store.len() > 0 && self.store[tmp_anchor_offset].is_visible() {
+		if !self.store.is_empty() && self.store[tmp_anchor_offset].is_visible() {
 			self.viewport_offset = tmp_anchor_offset;
 			self.scroll(-(rel_offset as i64), self.visible_lines);
 		} else {
@@ -245,6 +246,7 @@ impl LogStoreLinear {
 		}
 
 		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
+		#[allow(clippy::never_loop)]
 		for (offset, _) in self
 			.store
 			.iter()
@@ -271,7 +273,7 @@ impl LogStoreLinear {
 		if percentage > 1.0 {
 			return 1.0; //clamp down if scrolled too far or window too large
 		}
-		return percentage;
+		percentage
 	}
 
 	//Returns false if nothing happened, returns true if viewport offset changed
@@ -311,6 +313,6 @@ impl LogStoreLinear {
 			}
 		}
 
-		return viewport_offset_old != self.viewport_offset;
+		viewport_offset_old != self.viewport_offset
 	}
 }

@@ -109,6 +109,7 @@ fn toggle_row(
 	}
 
 	{
+		#[allow(clippy::redundant_clone)]
 		let mut path_up = path.clone();
 		let mut level_inconsistent = check_inconsistent(tree_store, path_up.clone());
 		while path_up.up() && path_up.get_depth() > 0 {
@@ -302,11 +303,12 @@ fn draw(
 		);
 		ctx.set_font_size(store.font_size);
 
-		let mut draw_highlight = false;
-		if Some(i) == store.hover_line {
+		let mut draw_highlight = if Some(i) == store.hover_line {
 			ctx.set_source_rgb(0.8, 0.8, 0.8);
-			draw_highlight = true;
-		}
+			true
+		} else {
+			false
+		};
 
 		if (store.selected_single.contains(&offset)
 			|| (store.selected_range.is_some()
@@ -528,62 +530,60 @@ fn handle_evt_press(
 		store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
 		store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
 		store.hover_line = None;
-	} else {
-		if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
-		} else {
-			let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
-			if line >= store.visible_lines {
-			} else {
-				let clicked_line = store.rel_to_abs_offset(line);
+	} else if !(evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top)
+	{
+		let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+		if line < store.visible_lines {
+			let clicked_line = store.rel_to_abs_offset(line);
 
-				if let Some(clicked_line_val) = clicked_line {
-					if !store.pressed_shift && !store.pressed_ctrl {
-						store.selected_single.clear();
-						store.excluded_single.clear();
-						store.selected_range = None;
-						store.selected_single.insert(clicked_line_val);
-						store.selected_single_last = clicked_line;
-					} else if !store.pressed_shift && store.pressed_ctrl {
-						if !store.selected_single.insert(clicked_line_val) {
-							store.selected_single.remove(&clicked_line_val);
+			if let Some(clicked_line_val) = clicked_line {
+				if !store.pressed_shift && !store.pressed_ctrl {
+					store.selected_single.clear();
+					store.excluded_single.clear();
+					store.selected_range = None;
+					store.selected_single.insert(clicked_line_val);
+					store.selected_single_last = clicked_line;
+				} else if !store.pressed_shift && store.pressed_ctrl {
+					if !store.selected_single.insert(clicked_line_val) {
+						store.selected_single.remove(&clicked_line_val);
+					}
+					if let Some((pivot, clicked_line_old)) = store.selected_range {
+						if pivot <= clicked_line_val
+							&& clicked_line_old >= clicked_line_val
+							&& !store.excluded_single.insert(clicked_line_val)
+						{
+							store.excluded_single.remove(&clicked_line_val);
 						}
-						if let Some((pivot, clicked_line_old)) = store.selected_range {
-							if pivot <= clicked_line_val && clicked_line_old >= clicked_line_val {
-								if !store.excluded_single.insert(clicked_line_val) {
-									store.excluded_single.remove(&clicked_line_val);
-								}
-							}
-						}
+					}
+					store.selected_single_last = clicked_line;
+				} else {
+					let pivot = store.selected_single_last.unwrap_or(0);
+					if pivot < clicked_line_val {
+						store.selected_range = Some((pivot, clicked_line_val));
+					} else {
+						store.selected_range = Some((clicked_line_val, pivot));
+					}
+					if store.pressed_shift && store.pressed_ctrl {
+						//TODO: 13.04.2020: Behaviour does not reflect 100% how it is in Windows Explorer
 						store.selected_single_last = clicked_line;
 					} else {
-						let pivot = store.selected_single_last.unwrap_or(0);
-						if pivot < clicked_line_val {
-							store.selected_range = Some((pivot, clicked_line_val));
-						} else {
-							store.selected_range = Some((clicked_line_val, pivot));
-						}
-						if store.pressed_shift && store.pressed_ctrl {
-							//TODO: 13.04.2020: Behaviour does not reflect 100% how it is in Windows Explorer
-							store.selected_single_last = clicked_line;
-						} else {
-							store.selected_single.clear();
-						}
-						store.excluded_single.clear();
-					}
-				} else {
-					//Click into the void (no line is there)
-					if !store.pressed_shift && !store.pressed_ctrl {
 						store.selected_single.clear();
-						store.excluded_single.clear();
-						store.selected_range = None;
 					}
+					store.excluded_single.clear();
 				}
+			} else {
+				//Click into the void (no line is there)
+				if !store.pressed_shift && !store.pressed_ctrl {
+					store.selected_single.clear();
+					store.excluded_single.clear();
+					store.selected_range = None;
+				}
+			}
 
-				if clicked_line != store.anchor_offset {
-					store.anchor_offset = clicked_line;
-					println!("SET NEW anchor: {:?}", store.anchor_offset);
-					drawing_area.queue_draw();
-				}
+			if clicked_line != store.anchor_offset {
+				store.anchor_offset = clicked_line;
+				println!("SET NEW anchor: {:?}", store.anchor_offset);
+				drawing_area.queue_draw();
 			}
 		}
 	}
@@ -1215,7 +1215,6 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			}
 			LogSourceContentsExt::Entries(v) => {
 				store.append(v);
-				()
 			}
 		}
 	}
@@ -1229,7 +1228,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		log_source: &LogSourceExt,
 		prefix: String,
 	) {
-		let current_name = String::new() + &prefix + &"/" + &log_source.name;
+		let current_name = String::new() + &prefix + "/" + &log_source.name;
 		log_sources.insert(log_source.id, current_name.clone());
 		match &log_source.children {
 			LogSourceContentsExt::Sources(v) => {
@@ -1243,7 +1242,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	build_log_sources(
 		&mut store_rc.borrow_mut().log_sources,
-		&mut log_source_root_ext,
+		&log_source_root_ext,
 		String::new(),
 	);
 
@@ -1363,6 +1362,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 	}
 	{
+		#[allow(clippy::redundant_clone)]
 		let store_rc_clone = store_rc.clone();
 		window.connect_key_release_event(move |_window, event_key| {
 			println!(
