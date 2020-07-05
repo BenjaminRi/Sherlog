@@ -4,25 +4,24 @@ use super::super::model;
 use super::glog;
 use super::xlog;
 
-use std::mem;
 use std::collections::HashMap;
 
 static SFILE_PASSWORD: Option<&'static str> = option_env!("SFILE_PASSWORD");
 
 pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io::Error> {
 	let file = std::fs::File::open(&path)?;
-	let mut archive = zip::ZipArchive::new(file).unwrap(); //TODO: 21.06.2020: Handle ZipError!;
-
-	let mut glog_files = Vec::new();
+	let mut archive = zip::ZipArchive::new(file)?;
 
 	let mut client_child_sources = Vec::new();
-	let mut child_sources = Vec::new();
-	child_sources.reserve(archive.len());
+	let mut contr_child_sources = Vec::new();
+	let mut sensor_child_sources = Vec::new();
+	let mut unknown_child_sources = Vec::new();
+	
 	for i in 0..archive.len() {
 		let file = if let Some(password) = SFILE_PASSWORD {
-			archive.by_index_decrypt(i, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
+			archive.by_index_decrypt(i, password.as_bytes())?
 		} else {
-			archive.by_index(i).unwrap() //TODO: 21.06.2020: Handle ZipError!
+			archive.by_index(i)?
 		};
 		let outpath = file.sanitized_name();
 		let stem = outpath.file_stem().unwrap();
@@ -32,9 +31,32 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		if let Some(extension) = outpath.extension() {
 			match extension.to_string_lossy().as_ref() {
 				"glog" => {
-					let mut s = stem.to_string();
-					strip_suffix(&mut s);
-					glog_files.push(ZipEntry { name: s, index: i });
+					println!("GLOG: {}", &stem);
+					let root = model::LogSource {
+						name: stem.to_string(),
+						children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+					};
+					
+					let log_entry = glog::to_log_entries(file, root);
+					
+					let board_name = if let Some(offset) = stem.find('_') {
+						&stem[0..offset]
+					} else {
+						""
+					};
+					
+					match board_name {
+						"contr" => contr_child_sources.push(log_entry),
+						"adm" | //G
+						"axis" |
+						"laseroven" | //G
+						"sensorbase" |
+						"telescope" |
+						"trigger" |
+						"wfd" //W 
+							=> sensor_child_sources.push(log_entry),
+						_ => unknown_child_sources.push(log_entry),
+					}
 				}
 				"xlog" => {
 					//println!("XLOG: {}", &stem);
@@ -48,6 +70,8 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			}
 		}
 	}
+	
+	println!("--- Parsing done. Arranging log sources and entries");
 	
 	//Arrange Client logs into their respective channels
 	let mut client_log_sources = HashMap::<String, model::LogSource>::new();
@@ -95,56 +119,85 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		client_child_sources.push(sub_source);
 	}
 	
-	//client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	
-
-	//Merge numbered files together (e.g. contr_ProcessManager and contr_ProcessManager_1)
-	//Note: The number was already stripped with strip_suffix.
-	glog_files.sort_unstable();
-	let mut deque = std::collections::VecDeque::new();
-	let mut last_name = "".to_string();
-	for file in glog_files {
-		if last_name != file.name {
-			if !deque.is_empty() {
-				let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
-				let reader = ConcatZipReader::new(&mut archive, deque);
-				let root = model::LogSource {
-					name: last_name,
-					children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-				};
-				child_sources.push(glog::to_log_entries(reader, root));
-			}
-			println!("--------------------");
-			println!("Glog file: {:?}", file);
-			last_name = file.name;
-		} else {
-			println!("Glog file: {:?}", file);
-		}
-		deque.push_back(file.index);
-	}
-	if !deque.is_empty() {
-		let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
-		let reader = ConcatZipReader::new(&mut archive, deque);
-		let root = model::LogSource {
-			name: last_name,
-			children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-		};
-		child_sources.push(glog::to_log_entries(reader, root));
+	struct LogSourceMap {
+		name: String,
+		children: HashMap<String, model::LogSource>,
 	}
 
-	let mut contr_child_sources = Vec::new();
-	let mut sensor_child_sources: std::vec::Vec<model::LogSource> = Vec::new();
-	let mut unknown_child_sources = Vec::new();
 
-	for mut source in child_sources {
+	contr_child_sources.sort_by(|a, b| a.name.cmp(&b.name));
+	let mut contr_tmp_sources: std::vec::Vec<LogSourceMap> = Vec::new();
+	contr_tmp_sources.reserve(contr_child_sources.len());
+	for mut source in contr_child_sources.into_iter() {
 		//Controller logs
 		if source.name.starts_with("contr_") {
 			//Remove "contr_" to make it look nicer
 			source.name = source.name.split_off(6);
-			contr_child_sources.push(source);
-			continue;
 		}
+		strip_contr_suffix(&mut source.name);
+		
+		if contr_tmp_sources.last().is_some() && contr_tmp_sources.last().unwrap().name == source.name {
+			let last_source_map = contr_tmp_sources.last_mut().unwrap();
+			//we have last_source_map, which has HashMap<String, model::LogSource>, and we need to match log sources
+			let children_vec = match source.children {
+				model::LogSourceContents::Entries(_) => unreachable!(),
+				model::LogSourceContents::Sources(v) => v,
+			};
+			for child in children_vec {
+				if let Some(dest_source) = last_source_map.children.get_mut(&child.name) {
+					match &mut dest_source.children {
+						model::LogSourceContents::Entries(v_to) => {
+							match child.children {
+								model::LogSourceContents::Entries(mut v_from) => {
+									v_to.append(&mut v_from);
+								},
+								model::LogSourceContents::Sources(_) => unreachable!(),
+							}
+						},
+						model::LogSourceContents::Sources(_) => unreachable!(),
+					};
+				} else {
+					last_source_map.children.insert(child.name.clone(), child);
+				}
+			}
+		} else {
+			match source.children {
+				model::LogSourceContents::Entries(_) => println!("ERROR: File with entries!: {}", source.name), //TODO: Handle file with just entries...?
+				model::LogSourceContents::Sources(children_vec) => {
+					let mut children_map = HashMap::new();
+					for child in children_vec {
+						children_map.insert(child.name.clone(), child);
+					}
+					let source_map = LogSourceMap {
+						name: source.name,
+						children: children_map,
+					};
+					contr_tmp_sources.push(source_map);
+				},
+			}
+		}
+	}
+	
+	contr_child_sources = Vec::new();
+	contr_child_sources.reserve(contr_tmp_sources.len());
+	for source in contr_tmp_sources {
+		let mut new_children = Vec::new();
+		new_children.reserve(source.children.len());
+		for (_, sub_source) in source.children {
+			new_children.push(sub_source);
+		}
+		new_children.sort_by(|a, b| a.name.cmp(&b.name));
+		let new_source = model::LogSource {
+			name: source.name,
+			children: model::LogSourceContents::Sources(new_children),
+		};
+		contr_child_sources.push(new_source);
+	}
+	
+	//contr_child_sources = contr_tmp_sources;
 
+	/*for mut source in sensor_child_sources {
 		//Sensor logs
 		let mut iter = source.name.splitn(2, '_');
 		let board_name = iter.next().unwrap(); //First element always exists
@@ -181,30 +234,42 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				continue;
 			}
 		}
-
-		//Unknown logs
-		unknown_child_sources.push(source);
-	}
+	}*/
 	
 	//Case insensitive sort by log source name
+	client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	contr_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	
+	let mut sources_vec = Vec::new();
+	sources_vec.reserve(4);
+	
+	//Add sources in alphabetical order:
+	if !client_child_sources.is_empty() {
+		let client_logs = model::LogSource {
+			name: "Client".to_string(),
+			children: { model::LogSourceContents::Sources(client_child_sources) },
+		};
+		sources_vec.push(client_logs);
+	}
 
-	let contr_logs = model::LogSource {
-		name: "Controller".to_string(),
-		children: { model::LogSourceContents::Sources(contr_child_sources) },
-	};
-	let sensor_logs = model::LogSource {
-		name: "Sensor".to_string(),
-		children: { model::LogSourceContents::Sources(sensor_child_sources) },
-	};
-	let client_logs = model::LogSource {
-		name: "Client".to_string(),
-		children: { model::LogSourceContents::Sources(client_child_sources) },
-	};
+	if !contr_child_sources.is_empty() {
+		let contr_logs = model::LogSource {
+			name: "Controller".to_string(),
+			children: { model::LogSourceContents::Sources(contr_child_sources) },
+		};
+		sources_vec.push(contr_logs);
+	}
+	
+	if !sensor_child_sources.is_empty() {
+		let sensor_logs = model::LogSource {
+			name: "Sensor".to_string(),
+			children: { model::LogSourceContents::Sources(sensor_child_sources) },
+		};
+		sources_vec.push(sensor_logs);
+	}
 
-	let mut sources_vec = vec![client_logs, contr_logs, sensor_logs];
 	if !unknown_child_sources.is_empty() {
 		let unknown_logs = model::LogSource {
 			name: "Unknown".to_string(),
@@ -219,101 +284,81 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	})
 }
 
-struct ConcatZipReader<'a, R: std::io::Read + std::io::Seek> {
-	archive: &'a mut zip::ZipArchive<R>,
-	file: Option<zip::read::ZipFile<'a>>,
-	indices: std::collections::VecDeque<usize>,
+enum LogStorageType {
+	Persistent, //on flash or disk storage
+	Volatile, //in RAM
 }
 
-impl<'a, R: std::io::Read + std::io::Seek> ConcatZipReader<'a, R> {
-	fn new(
-		archive: &'a mut zip::ZipArchive<R>,
-		indices: std::collections::VecDeque<usize>,
-	) -> ConcatZipReader<'a, R> {
-		ConcatZipReader {
-			archive: archive,
-			file: None,
-			indices: indices,
-		}
-	}
+struct SensorGlogType {
+	buffer_idx: Option<u32>,
+	persistence: Option<LogStorageType>,
 }
 
-impl<'a, R: std::io::Read + std::io::Seek> std::io::Read for ConcatZipReader<'a, R> {
-	fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-		loop {
-			if let Some(f) = &mut self.file {
-				let result = f.read(buf);
-				if let Ok(bytes) = result {
-					if bytes == 0 {
-						//file exhausted, retry with next file
-						self.file = None;
-						continue;
-					}
-				}
-				//ordinary read from the file
-				return result;
-			} else {
-				match self.indices.pop_front() {
-					Some(idx) => {
-						//Need to open new file
-						let f = if let Some(password) = SFILE_PASSWORD {
-							self.archive.by_index_decrypt(idx, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
-						} else {
-							self.archive.by_index(idx).unwrap() //TODO: 21.06.2020: Handle ZipError!
-						};
-						unsafe {
-							//Due to the fact that file references archive and both are in the same struct,
-							//this cannot be done in safe Rust
-							self.file = Some(std::mem::transmute::<
-								zip::read::ZipFile<'_>,
-								zip::read::ZipFile<'a>,
-							>(f));
-						}
-						//retry with newly opened file
-						continue;
-					}
-					None => {
-						//file list exhausted, end of reader
-						return Ok(0);
-					}
-				}
-			}
-		}
-	}
+struct ContrGlogType {
+	overview: bool,
 }
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct ZipEntry {
-	name: String,
-	index: usize,
-}
-
-fn strip_suffix(s: &mut String) {
-	let storage_type = if s.ends_with("_v") {
-		//Virtual (in RAM)
-		"_v"
-	} else if s.ends_with("_p") {
-		//Persistent (on Flash storage)
-		"_p"
-	} else {
-		//Unknown storage type
-		""
-	};
-
-	s.truncate(s.len() - storage_type.len());
-
+fn strip_contr_suffix(s: &mut String) -> ContrGlogType {
 	if let Some(offset) = s.rfind('_') {
 		if let Ok(_) = &s[offset + 1..s.len()].parse::<u32>() {
-			//Numbered logfile. Discard ring buffer index.
+			//Numbered logfile with ring buffer index.
+			//The first logfile in the ring buffer has no index.
+			//Note: For contr_ files, this might also be
+			//the process log id! Due to legacy, this can
+			//never be distinguished reliably any more.
+			//Example:
+			//contr_telescope.glog
+			//contr_telescope_1.glog
+			//contr_telescope_2.glog
+			//contr_Telescope_10061.glog
 			s.truncate(offset);
 		}
 	}
 
 	if s.ends_with("_ov") {
 		//Overview logs are merged with normal logs.
+		//This is a type of log that rolls over slower
+		//and preserves important messages longer.
 		s.truncate(s.len() - "_ov".len());
+		ContrGlogType { overview: true }
+	} else {
+		ContrGlogType {overview: false }
 	}
+}
+
+fn strip_sensor_suffix(s: &mut String) -> SensorGlogType {
+	let (storage_type, persistence) = if s.ends_with("_v") {
+		("_v", Some(LogStorageType::Volatile))
+	} else if s.ends_with("_p") {
+		("_p", Some(LogStorageType::Persistent))
+	} else {
+		//Unknown storage type
+		//This should never happen, but be robust anyway
+		("", None)
+	};
+
+	s.truncate(s.len() - storage_type.len());
+
+	let buffer_idx = if let Some(offset) = s.rfind('_') {
+		if let Ok(buffer_idx) = &s[(offset + 1)..s.len()].parse::<u32>() {
+			s.truncate(offset);
+			Some(*buffer_idx)
+		} else {
+			//Ringbuffer index cannot be parsed
+			//This should never happen, but be robust anyway
+			None
+		}
+	} else {
+		//No ringbuffer index exists
+		//This should never happen, but be robust anyway
+		None
+	};
 
 	//Restore storage type suffix
 	s.push_str(storage_type);
+	
+	SensorGlogType {
+		buffer_idx,
+		persistence,
+	}
 }
