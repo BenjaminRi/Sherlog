@@ -68,19 +68,15 @@ pub struct LogStoreLinear {
 
 impl LogStoreLinear {
 	pub fn rel_to_abs_offset(&self, rel_offset: usize) -> Option<usize> {
-		#[allow(clippy::never_loop)]
-		for (offset, _) in self
-			.store
+		self.store
 			.iter()
 			.enumerate() //offset in vector
 			.skip(self.viewport_offset)
 			.filter(|(_, x)| x.is_visible())
 			.skip(rel_offset)
 			.take(1)
-		{
-			return Some(offset);
-		}
-		None
+			.next()
+			.map(|(offset, _)| offset)
 	}
 
 	pub fn abs_to_rel_offset(&self, abs_offset: usize) -> Option<usize> {
@@ -246,19 +242,15 @@ impl LogStoreLinear {
 		}
 
 		let entry_id = ((self.entry_count - window_size) as f64 * perc).round() as u32;
-		#[allow(clippy::never_loop)]
-		for (offset, _) in self
-			.store
+
+		self.store
 			.iter()
 			.enumerate()
 			.skip(std::cmp::max(1, entry_id as usize) - 1)
 			.filter(|(_, x)| x.is_visible() && x.entry_id == entry_id)
 			.take(1)
-		{
-			return Some(offset);
-		}
-
-		unreachable!()
+			.next()
+			.map_or_else(|| unreachable!(), |(offset, _)| Some(offset))
 	}
 
 	pub fn get_scroll_percentage(&self, window_size: usize) -> f64 {
