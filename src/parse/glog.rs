@@ -142,7 +142,8 @@ impl GlogParser {
 					match kind {
 						GlogSectionKind::TimestampMs => {
 							if let Ok(ts_milli) = value_str.parse::<u64>() {
-								if let Some(datetime) = datetime_utils::from_timestamp_ms(ts_milli) {
+								if let Some(datetime) = datetime_utils::from_timestamp_ms(ts_milli)
+								{
 									self.log_entry.timestamp = datetime;
 								} else {
 									//TODO: Notify of invalid datetime?
