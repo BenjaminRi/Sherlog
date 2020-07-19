@@ -1442,13 +1442,14 @@ println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 let ts_milli : u64 = 1568208334469;
 let ts_sec   : u64 = ts_milli / 1000;
 let ts_nano  : u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
-let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano).expect("Invalid timestamp encounteres"), Utc);
+let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano).expect("Invalid timestamp encountered"), Utc);
 println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 let dt : DateTime::<Utc> = DateTime::<FixedOffset>::parse_from_rfc3339("1996-12-19T16:39:57-08:00").expect("Parse error!").with_timezone(&Utc);
-println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));*/
+println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
+*/
+
 
 /*
-
 enum Severity
 {
   OFF = SLOG2_SHUTDOWN - 1,    ///filter setting only: no log passes.
