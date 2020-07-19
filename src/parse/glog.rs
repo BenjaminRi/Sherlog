@@ -1,8 +1,7 @@
 use super::super::model;
 
-extern crate chrono;
+use super::datetime_utils;
 
-use chrono::prelude::*;
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::io::Read;
@@ -143,19 +142,15 @@ impl GlogParser {
 					match kind {
 						GlogSectionKind::TimestampMs => {
 							if let Ok(ts_milli) = value_str.parse::<u64>() {
-								let ts_sec: u64 = ts_milli / 1000;
-								let ts_nano: u32 = ((ts_milli - ts_sec * 1000) * 1_000_000) as u32;
-								if let Some(ndt) =
-									NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
-								{
-									self.log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
+								if let Some(datetime) = datetime_utils::from_timestamp_ms(ts_milli) {
+									self.log_entry.timestamp = datetime;
 								} else {
 									//TODO: Notify of invalid datetime?
-									println!("MALFORMED Log datetime: {}", value_str);
+									println!("MALFORMED Log ms timestamp: {}", ts_milli);
 								}
 							} else {
 								//TODO: Notify of invalid timestamp?
-								println!("MALFORMED Log timestamp: {}", value_str);
+								println!("MALFORMED Log ms timestamp value: {}", value_str);
 							}
 						}
 						GlogSectionKind::Severity => {
@@ -186,32 +181,16 @@ impl GlogParser {
 							self.log_entry.message = value_str.to_string();
 						}
 						GlogSectionKind::Timestamp100ns => {
-							if let Ok(mut ts_100ns) = value_str.parse::<u64>() {
-								// 100-nanosecond offset from 0000-01-01 00:00:00.000 to 1970-01-01 00:00:00.000
-								const TIME_OFFSET: u64 = 621_355_968_000_000_000;
-								if ts_100ns >= TIME_OFFSET {
-									ts_100ns -= TIME_OFFSET;
-									let ts_sec: u64 = ts_100ns / 10_000_000;
-									let ts_nano: u32 = (ts_100ns - ts_sec * 10_000_000) as u32;
-									if let Some(ndt) =
-										NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
-									{
-										self.log_entry.timestamp =
-											DateTime::<Utc>::from_utc(ndt, Utc);
-									} else {
-										//TODO: Notify of invalid datetime?
-										println!(
-											"MALFORMED Log 100ns stamp datetime: {}",
-											value_str
-										);
-									}
+							if let Ok(gcom_datetime) = value_str.parse::<u64>() {
+								if let Some(datetime) = datetime_utils::from_100ns(gcom_datetime) {
+									self.log_entry.timestamp = datetime;
 								} else {
-									//TODO: Notify of invalid offset?
-									println!("MALFORMED Log 100ns stamp offset: {}", ts_100ns);
+									//TODO: Notify of invalid datetime?
+									println!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
 								}
 							} else {
-								//TODO: Notify of invalid time?
-								println!("MALFORMED Log 100ns stamp: {}", value_str);
+								//TODO: Notify of invalid 100ns value?
+								println!("MALFORMED Log 100ns value: {}", value_str);
 							}
 						}
 						GlogSectionKind::ErrorCode => {

@@ -1,8 +1,7 @@
 use super::super::model;
 
-extern crate chrono;
+use super::datetime_utils;
 
-use chrono::prelude::*;
 use std::io::BufRead;
 use std::io::BufReader;
 
@@ -24,28 +23,16 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 
 				match unit_header {
 					"<T>" => {
-						if let Ok(mut ts_100ns) = unit_value.parse::<u64>() {
-							// 100-nanosecond offset from 0000-01-01 00:00:00.000 to 1970-01-01 00:00:00.000
-							const TIME_OFFSET: u64 = 621_355_968_000_000_000;
-							if ts_100ns >= TIME_OFFSET {
-								ts_100ns -= TIME_OFFSET;
-								let ts_sec: u64 = ts_100ns / 10_000_000;
-								let ts_nano: u32 = (ts_100ns - ts_sec * 10_000_000) as u32;
-								if let Some(ndt) =
-									NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano)
-								{
-									log_entry.timestamp = DateTime::<Utc>::from_utc(ndt, Utc);
-								} else {
-									//TODO: Notify of invalid datetime?
-									println!("MALFORMED Log 100ns stamp datetime: {}", unit_value);
-								}
+						if let Ok(gcom_datetime) = unit_value.parse::<u64>() {
+							if let Some(datetime) = datetime_utils::from_100ns(gcom_datetime) {
+								log_entry.timestamp = datetime;
 							} else {
-								//TODO: Notify of invalid offset?
-								println!("MALFORMED Log 100ns stamp offset: {}", ts_100ns);
+								//TODO: Notify of invalid datetime?
+								println!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
 							}
 						} else {
 							//TODO: Notify of invalid time?
-							println!("MALFORMED Log 100ns stamp: {}", unit_value);
+							println!("MALFORMED Log 100ns value: {}", unit_value);
 						}
 					}
 					"<L>" => {
