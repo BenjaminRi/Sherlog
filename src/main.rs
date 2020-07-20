@@ -1448,7 +1448,6 @@ let dt : DateTime::<Utc> = DateTime::<FixedOffset>::parse_from_rfc3339("1996-12-
 println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 */
 
-
 /*
 enum Severity
 {
