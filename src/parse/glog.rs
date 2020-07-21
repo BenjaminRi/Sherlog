@@ -170,6 +170,10 @@ impl GlogParser {
 						GlogSectionKind::LogSource => {
 							if let Ok(parsed_sub_source) = value_str.parse::<i32>() {
 								self.sub_source = Some(parsed_sub_source);
+							//self.log_entry.custom_fields.insert(
+							//	std::borrow::Cow::Borrowed("LogSource"),
+							//	model::CustomField::Int32(parsed_sub_source),
+							//);
 							} else {
 								//TODO: Notify of malformed sub-source?
 								println!("MALFORMED Log sub-source: {}", value_str);
@@ -200,6 +204,15 @@ impl GlogParser {
 						GlogSectionKind::SessionId => {
 							//TODO: Handle session ID, in particular sorting
 							//with session ID instead of timestamp
+							if let Ok(parsed_session_id) = value_str.parse::<u32>() {
+								self.log_entry.custom_fields.insert(
+									std::borrow::Cow::Borrowed("SessionId"),
+									model::CustomField::UInt32(parsed_session_id),
+								);
+							} else {
+								//TODO: Notify of malformed session id?
+								println!("MALFORMED Session ID: {}", value_str);
+							}
 						}
 						GlogSectionKind::Unknown => (),
 					}

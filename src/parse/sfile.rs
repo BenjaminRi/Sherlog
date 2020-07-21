@@ -1,6 +1,12 @@
+extern crate chrono;
 extern crate zip;
 
+use chrono::prelude::DateTime;
+use chrono::prelude::NaiveDateTime;
+use chrono::prelude::Utc;
+
 use super::super::model;
+use super::datetime_utils;
 use super::glog;
 use super::xlog;
 
@@ -192,6 +198,10 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
+	for mut source in &mut sensor_child_sources {
+		adjust_sensor_timestamps(&mut source);
+	}
+
 	let contr_logs = model::LogSource {
 		name: "Controller".to_string(),
 		children: { model::LogSourceContents::Sources(contr_child_sources) },
@@ -218,6 +228,122 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		name: path.file_name().unwrap().to_string_lossy().to_string(),
 		children: { model::LogSourceContents::Sources(sources_vec) },
 	})
+}
+
+fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
+	let mut session_map = HashMap::<u32, i64>::new(); //maps session to EtherCAT offset
+	fn generate_session_table(source: &model::LogSource, mut map: &mut HashMap<u32, i64>) {
+		match &source.children {
+			model::LogSourceContents::Sources(v) => {
+				for source in v {
+					generate_session_table(&source, &mut map);
+				}
+			}
+			model::LogSourceContents::Entries(v) => {
+				for entry in v {
+					if let Some(field) = entry.custom_fields.get("SessionId") {
+						if let model::CustomField::UInt32(session_id) = field {
+							//Some log entries say:
+							//Setting EtherCAT time [delta = 1562060032100954112 ns].
+							//Others say (omitting the dot):
+							//Setting EtherCAT time [delta = 1562060032100954112 ns]
+							//We need to handle both...
+							if entry.message.starts_with("Setting EtherCAT time [delta = ")
+								&& (entry.message.ends_with(" ns].")
+									|| entry.message.ends_with(" ns]"))
+							{
+								let delta = entry.message.split(' ').nth(5).unwrap(); //we can unwrap here because we verified the format above
+								if let Ok(delta) = delta.parse::<i64>() {
+									let delta_old = map.insert(*session_id, delta);
+									if let Some(delta_old) = delta_old {
+										if delta_old == delta {
+											// Message is duplicated over all FUs. This is a normal occurrence.
+											//println!("WARNING: Overwriting EtherCAT Time with same content! Session ID: {}, Delta: {}", session_id, delta);
+										} else {
+											println!("WARNING: Overwriting EtherCAT Time! Session ID: {}, Old: {}, New: {}", session_id, delta_old, delta);
+										}
+									}
+								} else {
+									println!(
+										"WARNING: could not parse EtherCAT timestamp {}",
+										delta
+									);
+								}
+							} else {
+								//Do nothing. It's a regular message that does not set EtherCAT time.
+							}
+						} else {
+							panic!("Wrong type for session ID!");
+						}
+					} else {
+						// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID (???)
+						println!(
+							"WARNING: No session ID found for sensor log entry: {}",
+							entry.message
+						);
+					}
+				}
+			}
+		}
+	}
+	generate_session_table(&source, &mut session_map);
+
+	fn adjust_source_timestamp(source: &mut model::LogSource, map: &HashMap<u32, i64>) {
+		match &mut source.children {
+			model::LogSourceContents::Sources(v) => {
+				for mut source in v {
+					adjust_source_timestamp(&mut source, &map);
+				}
+			}
+			model::LogSourceContents::Entries(v) => {
+				for mut entry in v {
+					// Timestamps before 01-01-72 00:00:00.000000 are not realistic because the device did not exist back then.
+					// We can safely assume that these are relative timestamps that are not yet corrected with EtherCAT time.
+					// It is also reasonable to assume that a device receives its EtherCAT time within 2 years (or never).
+					if entry.timestamp
+						< DateTime::<Utc>::from_utc(
+							NaiveDateTime::from_timestamp(63_072_000, 0),
+							Utc,
+						) {
+						if let Some(field) = entry.custom_fields.get("SessionId") {
+							if let model::CustomField::UInt32(session_id) = field {
+								if let Some(delta) = map.get(&session_id) {
+									//Divide delta by 100 to convert from 1ns to 100ns ticks, which is the default GCOM timespan measurement
+									if let Some(corrected_timestamp) =
+										datetime_utils::add_offset_100ns(
+											entry.timestamp,
+											*delta / 100,
+										) {
+										entry.timestamp = corrected_timestamp;
+									} else {
+										println!(
+											"WARNING: could not correct timestamp with offset: {}",
+											delta
+										);
+									}
+								} else {
+									// This happens if the bus never connected, so the device never got the EtherCAT offset.
+									// In this sense, it is a normal thing to occur over the lifetime of a device,
+									// but we have to think about how to sort these log lines as their timestamp is incorrect.
+									//println!("WARNING: Could not find EtherCAT offset for {}!", entry.message);
+								}
+							} else {
+								panic!("Wrong type for session ID!");
+							}
+						} else {
+							// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID (???)
+							println!(
+								"WARNING: No session ID found for sensor log entry: {}",
+								entry.message
+							);
+						}
+					}
+				}
+			}
+		}
+	}
+	adjust_source_timestamp(&mut source, &session_map);
+	//println!("TABLE: {:?}", session_map);
 }
 
 struct ConcatZipReader<'a, R: std::io::Read + std::io::Seek> {
