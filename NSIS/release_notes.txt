@@ -1,0 +1,35 @@
++-----------------------------------------+
+| Sherlog log viewer                      |
+| by Benjamin Richner                     |
+| GPLv3 Licensed Open Source application  |
+| https://github.com/BenjaminRi/Sherlog   |
+| Pull requests are welcome               |
++-----------------------------------------+
+
+Sherlog v0.1 (23.03.2020) - Local alpha build
+
+- Initial release for alpha testing
+
+Sherlog v0.2 (23.03.2020) - Local alpha build
+
+- Prevent Windows console from opening
+- Various bug fixes
+
+Sherlog v0.3 (07.04.2020) - Local alpha build
+
+- Put log files into clean tree structure
+- Various bug fixes
+
+Sherlog v0.4 (14.04.2020) - Local alpha build
+
+- Various bug fixes and improvements
+
+Sherlog v0.5 (04.05.2020) - Local alpha build
+
+- Add XLOG parser (client logs)
+
+Sherlog v0.6 (22.07.2020) - Commit ID: e41cc329e8778e957d510a815afdac1c2bdd4493
+
+- Add time delta calculator in the bottom left
+- Fix bug where seconds fractions were too small by a factor of 100 for all sensor and client logs
+- Add EtherCAT time correction
