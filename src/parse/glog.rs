@@ -361,7 +361,25 @@ fn normalize_glog_sev(glog_sev: GlogSeverity) -> model::LogLevel {
 		GlogSeverity::Error => model::LogLevel::Error,
 		GlogSeverity::Warning => model::LogLevel::Warning,
 		GlogSeverity::Info => model::LogLevel::Info,
-		GlogSeverity::None => model::LogLevel::Critical,
+		GlogSeverity::None => model::LogLevel::Debug,
+		//Note: We map GlogSeverity::None to Debug.
+		//GlogSeverity::None is often used to dump unstructured
+		//log output whose severity is not known. Classifying that
+		//as critical would be misleading, as it creates the
+		//impression that there is a large number of critical errors.
+		//A log message with this severity could be anything, from
+		//critical error all the way to verbose debug data!!
+		//
+		//In my opinion, GlogSeverity::None shouldn't even exist,
+		//as it allows unstructured log data inside a structured log
+		//and delegates the difficult problem of log classification
+		//to the outside world which knows even less about the true
+		//severity of the messages. Therefore, firmware that logs with
+		//GlogSeverity::None shall be considered buggy and should be fixed.
+		//The usage of the GLOG severity SEV_NONE in the firmware's
+		//C++ code shall be replaced with the appropriate severity!
+		//Only sensor firmware contains this bug, controller firmware
+		//does it right by virtue of using QNX's slogger/slogger2.
 	}
 }
 
