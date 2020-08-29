@@ -8,8 +8,8 @@ Sherlog uses the notion of log sources. A log source represents either a group o
 
 ## State of the implementation
 
-The program is written in Rust, backed by GTK+ 3 to display the GUI. So far, the log source viewer and the data structures are done. Visualizing, sorting and filtering the logs is a work in progress. The program is not in a usable state for end users (pre-alpha). It is compatible with Windows, Linux and all other operating systems that support Rust and GTK+ 3.
+The program is written in Rust, backed by GTK+ 3 to display the GUI. So far, the log source viewer and the data structures are done. Visualizing, sorting and filtering the logs is a work in progress. The program is in beta stage and can be used on a daily basis. It is compatible with Windows, Linux and all other operating systems that support Rust and GTK+ 3.
 
 ## How to compile
 
-The Rust compiler is needed. Please follow the instructions at https://gtk-rs.org/ to set up an environment to link with GTK.
+The Rust compiler is needed. Please follow the instructions at https://gtk-rs.org/ to set up an environment to link with GTK+ 3. I prefer using MSYS2, then open up the MSYS2 console and install GTK+ 3 with `pacman -S mingw-w64-x86_64-gtk3`.
