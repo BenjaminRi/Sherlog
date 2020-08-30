@@ -2,7 +2,7 @@
 # Use Unicode. Installer will not work on Windows 95/98/ME.
 Unicode true
 
-;https://gist.github.com/drewchapin/246de6d0c404a79ee66a5ead35b480bc
+; https://gist.github.com/drewchapin/246de6d0c404a79ee66a5ead35b480bc
 ;-------------------------------------------------------------------------------
 ; Includes
 !include "MUI2.nsh"
@@ -78,16 +78,16 @@ ${Operation} "${PathPrefix}\share\"
 
 !macro FILES Operation PathPrefix
 SetOutPath "$INSTDIR\bin"
+${Operation} "${PathPrefix}\bin\gdbus.exe"
 ${Operation} "${PathPrefix}\bin\libatk-1.0-0.dll"
 ${Operation} "${PathPrefix}\bin\libbz2-1.dll"
 ${Operation} "${PathPrefix}\bin\libcairo-2.dll"
 ${Operation} "${PathPrefix}\bin\libcairo-gobject-2.dll"
 ${Operation} "${PathPrefix}\bin\libcairo-script-interpreter-2.dll"
-${Operation} "${PathPrefix}\bin\libcroco-0.6-3.dll"
 ${Operation} "${PathPrefix}\bin\libdatrie-1.dll"
 ${Operation} "${PathPrefix}\bin\libepoxy-0.dll"
 ${Operation} "${PathPrefix}\bin\libexpat-1.dll"
-${Operation} "${PathPrefix}\bin\libffi-6.dll"
+${Operation} "${PathPrefix}\bin\libffi-7.dll"
 ${Operation} "${PathPrefix}\bin\libfontconfig-1.dll"
 ${Operation} "${PathPrefix}\bin\libfreetype-6.dll"
 ${Operation} "${PathPrefix}\bin\libfribidi-0.dll"
@@ -142,33 +142,46 @@ SetOutPath "$INSTDIR"
 ; Installer Sections
 Section "Sherlog" Sherlog
 	SetOutPath $INSTDIR
-	
+
+	IfFileExists "$INSTDIR\Uninstall.exe" 0 done_uninstall
+	DetailPrint "Uninstall previous version..."
+	SetDetailsPrint none
+	ExecWait "$INSTDIR\Uninstall.exe /S _?=$INSTDIR"
+	SetDetailsPrint lastused
+	done_uninstall:
+
+	WriteUninstaller "$INSTDIR\Uninstall.exe"
+
 	!insertmacro DIRECTORIES CreateDirectory "$INSTDIR"
 	!insertmacro FILES File "C:\msys64\mingw64"
+	DetailPrint "Extract files..."
+	SetDetailsPrint textonly
 	SetOutPath "$INSTDIR\share\icons\Adwaita\"
 	File /r "C:\msys64\mingw64\share\icons\Adwaita\"
 	SetOutPath "$INSTDIR\share\icons\hicolor\"
 	File /r "C:\msys64\mingw64\share\icons\hicolor\"
+	SetDetailsPrint lastused
 	SetOutPath "$INSTDIR\bin"
 	File "..\target\release\sherlog.exe"
 	CreateShortCut "$DESKTOP\Sherlog.lnk" "$INSTDIR\bin\sherlog.exe"
-	
-	
-	WriteUninstaller "$INSTDIR\Uninstall.exe"
+
 SectionEnd
 
 ;-------------------------------------------------------------------------------
 ; Uninstaller Sections
 Section "Uninstall"
-	Delete "$INSTDIR\Uninstall.exe"
-	
 	Delete "$DESKTOP\Sherlog.lnk"
 	Delete "$INSTDIR\bin\sherlog.exe"
+	DetailPrint "Delete files..."
+	SetDetailsPrint textonly
 	RMDir /r "$INSTDIR\share\icons\hicolor\"
 	RMDir /r "$INSTDIR\share\icons\Adwaita\"
+	SetDetailsPrint lastused
 	!insertmacro FILES Delete "$INSTDIR"
 	!insertmacro DIRECTORIES RMDir "$INSTDIR"
 	
-	SetOutPath "$DESKTOP" ;free outpath so $INSTDIR can be deleted
+	Delete "$INSTDIR\Uninstall.exe"
+	
+	SetOutPath "$DESKTOP" ; free outpath so $INSTDIR can be deleted
 	RMDir "$INSTDIR"
 SectionEnd
