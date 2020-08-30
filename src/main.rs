@@ -899,7 +899,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	//Do not use TreeModelSort:
 	//https://github.com/gtk-rs/gtk/issues/1000 (closed as problem is not in Rust wrapper)
 	//https://gitlab.gnome.org/GNOME/gtk/-/issues/2693 (issue in GTK)
-	let sources_tree_view = gtk::TreeView::new_with_model(&left_store);
+	let sources_tree_view = gtk::TreeView::with_model(&left_store);
 	sources_tree_view.set_headers_visible(true);
 
 	/*{
@@ -1060,7 +1060,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	split_pane_left.pack_start(&scrolled_window_left, true, true, 0);
 	{
-		let check_btn = gtk::CheckButton::new_with_label("Critical");
+		let check_btn = gtk::CheckButton::with_label("Critical");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1075,7 +1075,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 
 		split_pane_left.pack_start(&check_btn, false, false, 0);
-		let check_btn = gtk::CheckButton::new_with_label("Error");
+		let check_btn = gtk::CheckButton::with_label("Error");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1090,7 +1090,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 
 		split_pane_left.pack_start(&check_btn, false, false, 0);
-		let check_btn = gtk::CheckButton::new_with_label("Warning");
+		let check_btn = gtk::CheckButton::with_label("Warning");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1105,7 +1105,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 
 		split_pane_left.pack_start(&check_btn, false, false, 0);
-		let check_btn = gtk::CheckButton::new_with_label("Info");
+		let check_btn = gtk::CheckButton::with_label("Info");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1120,7 +1120,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 
 		split_pane_left.pack_start(&check_btn, false, false, 0);
-		let check_btn = gtk::CheckButton::new_with_label("Debug");
+		let check_btn = gtk::CheckButton::with_label("Debug");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1135,7 +1135,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		});
 
 		split_pane_left.pack_start(&check_btn, false, false, 0);
-		let check_btn = gtk::CheckButton::new_with_label("Trace");
+		let check_btn = gtk::CheckButton::with_label("Trace");
 		check_btn.set_active(true);
 
 		let store_rc_clone = store_rc.clone();
@@ -1157,7 +1157,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		store: &mut LogStoreLinear,
 		drawing_area: &gtk::DrawingArea,
 	) {
-		let search_text = w.get_text().unwrap().as_str().to_string();
+		let search_text = w.get_text().as_str().to_string();
 		if search_text == "" {
 			println!("Search empty");
 			store.filter_store(
@@ -1306,7 +1306,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	split_pane.pack2(&drawing_area, true, false);
 
 	//https://gtk-rs.org/docs/gdk/enums/key/index.html
-	//println!("CODES: {} {} {} {}", gdk::enums::key::Control_L, gdk::enums::key::Control_R, gdk::enums::key::Shift_L, gdk::enums::key::Shift_R);
+	//println!("CODES: {} {} {} {}", gdk::keys::constants::Control_L, gdk::keys::constants::Control_R, gdk::keys::constants::Shift_L, gdk::keys::constants::Shift_R);
 	/*You should place GtkDrawArea in GtkEventBox and then doing all that stuff from GtkEventBox. As far as I remember, this is happening because there are not these events for GtkDrawArea. One in stackoverflow explained that, but only with GtkImage. I know, that GtkDrawArea in GtkEventBox works, because I am currently writing app that uses it (app is in c, but it should work for c++ too).
 	https://stackoverflow.com/questions/52171141/gtkmm-how-to-attach-keyboard-events-to-an-drawingarea*/
 	{
@@ -1317,17 +1317,17 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				event_key.get_keyval(),
 				event_key.get_hardware_keycode()
 			);
-			if event_key.get_keyval() == gdk::enums::key::Control_L
-				|| event_key.get_keyval() == gdk::enums::key::Control_R
+			if event_key.get_keyval() == gdk::keys::constants::Control_L
+				|| event_key.get_keyval() == gdk::keys::constants::Control_R
 			{
 				store_rc_clone.borrow_mut().pressed_ctrl = true;
 			}
-			if event_key.get_keyval() == gdk::enums::key::Shift_L
-				|| event_key.get_keyval() == gdk::enums::key::Shift_R
+			if event_key.get_keyval() == gdk::keys::constants::Shift_L
+				|| event_key.get_keyval() == gdk::keys::constants::Shift_R
 			{
 				store_rc_clone.borrow_mut().pressed_shift = true;
 			}
-			if event_key.get_keyval() == gdk::enums::key::c && store_rc_clone.borrow().pressed_ctrl
+			if event_key.get_keyval() == gdk::keys::constants::c && store_rc_clone.borrow().pressed_ctrl
 			{
 				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
@@ -1370,13 +1370,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 				event_key.get_keyval(),
 				event_key.get_hardware_keycode()
 			);
-			if event_key.get_keyval() == gdk::enums::key::Control_L
-				|| event_key.get_keyval() == gdk::enums::key::Control_R
+			if event_key.get_keyval() == gdk::keys::constants::Control_L
+				|| event_key.get_keyval() == gdk::keys::constants::Control_R
 			{
 				store_rc_clone.borrow_mut().pressed_ctrl = false;
 			}
-			if event_key.get_keyval() == gdk::enums::key::Shift_L
-				|| event_key.get_keyval() == gdk::enums::key::Shift_R
+			if event_key.get_keyval() == gdk::keys::constants::Shift_L
+				|| event_key.get_keyval() == gdk::keys::constants::Shift_R
 			{
 				store_rc_clone.borrow_mut().pressed_shift = false;
 			}
@@ -1389,7 +1389,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	for dialog in dialog_vec {
 		dialog.run();
-		dialog.destroy();
+		dialog.emit_close();
 	}
 }
 
