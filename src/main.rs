@@ -1327,7 +1327,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			{
 				store_rc_clone.borrow_mut().pressed_shift = true;
 			}
-			if event_key.get_keyval() == gdk::keys::constants::c && store_rc_clone.borrow().pressed_ctrl
+			if event_key.get_keyval() == gdk::keys::constants::c
+				&& store_rc_clone.borrow().pressed_ctrl
 			{
 				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
