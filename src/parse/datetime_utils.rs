@@ -71,6 +71,7 @@ pub fn add_offset_100ns(
 	//TODO: Use Rust's timespan arithmetic? CAREFUL: Rust has leap seconds, GCOM does not!
 
 	if let Some(gcom_datetime) = to_100ns(datetime) {
+		#[allow(clippy::collapsible_if)]
 		if gcom_timespan == i64::MIN {
 			if let Some(gcom_datetime) = gcom_datetime.checked_sub((-(gcom_timespan + 1)) as u64) {
 				if let Some(gcom_datetime) = gcom_datetime.checked_sub(1) {
