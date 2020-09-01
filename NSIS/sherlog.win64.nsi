@@ -1,4 +1,4 @@
-#-------------------------------------------------------------------------------
+﻿#-------------------------------------------------------------------------------
 # Use Unicode. Installer will not work on Windows 95/98/ME.
 Unicode true
 
@@ -13,7 +13,7 @@ Unicode true
 ;-------------------------------------------------------------------------------
 ; Constants
 !define PRODUCT_NAME "Sherlog"
-!define PRODUCT_DESCRIPTION "View & analyse log files"
+!define PRODUCT_DESCRIPTION "Log viewer and analysis tool"
 !define COPYRIGHT "Copyright © 2020 Benjamin Richner"
 !define PRODUCT_VERSION "0.1.0.0"
 !define SETUP_VERSION 0.1.0.0
