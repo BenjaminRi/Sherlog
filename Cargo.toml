@@ -17,3 +17,5 @@ log = "0.4.11"
 chrono = "0.4.15"
 regex = "1.3.9"
 zip = { git = "https://github.com/BenjaminRi/zip-rs.git", branch = "pkzip-cipher", version = "0.5", features = ["deflate"], default-features = false }
+[target.'cfg(windows)'.build-dependencies]
+windres = "0.2"
