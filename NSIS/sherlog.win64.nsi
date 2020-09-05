@@ -11,28 +11,35 @@ Unicode true
 !include "x64.nsh"
 
 ;-------------------------------------------------------------------------------
-; Constants
+; Metadata configuration
+
+!define COMPILED_BIN_DIR "..\target\release\sherlog.exe"
+!getdllversion "${COMPILED_BIN_DIR}" V_
+!define COMPILED_BIN_VERSION "${V_1}.${V_2}.${V_3}.${V_4}"
+!define COMPILED_BIN_RELEASE "${V_1}.${V_2}.${V_3}"
+
 !define PRODUCT_NAME "Sherlog"
 !define PRODUCT_DESCRIPTION "Log viewer and analysis tool"
 !define COPYRIGHT "Copyright © 2020 Benjamin Richner"
-!define PRODUCT_VERSION "0.1.0.0"
-!define SETUP_VERSION 0.1.0.0
+!define PRODUCT_VERSION "${COMPILED_BIN_VERSION}"
+!define FILE_VERSION "${COMPILED_BIN_VERSION}"
 
 ;-------------------------------------------------------------------------------
 ; Attributes
 Name "Sherlog"
-OutFile "Sherlog-Setup.exe"
+OutFile "Sherlog-Setup-v${COMPILED_BIN_RELEASE}.dev.exe"
 InstallDir "$PROGRAMFILES64\Sherlog"
 RequestExecutionLevel admin
 
 ;-------------------------------------------------------------------------------
 ; Version Info
 VIProductVersion "${PRODUCT_VERSION}"
+VIFileVersion "${FILE_VERSION}"
 VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
 VIAddVersionKey "ProductVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey "FileDescription" "${PRODUCT_DESCRIPTION}"
 VIAddVersionKey "LegalCopyright" "${COPYRIGHT}"
-VIAddVersionKey "FileVersion" "${SETUP_VERSION}"
+VIAddVersionKey "FileVersion" "${FILE_VERSION}"
 
 ;-------------------------------------------------------------------------------
 ; Modern UI Appearance
@@ -162,7 +169,7 @@ Section "Sherlog" Sherlog
 	File /r "C:\msys64\mingw64\share\icons\hicolor\"
 	SetDetailsPrint lastused
 	SetOutPath "$INSTDIR\bin"
-	File "..\target\release\sherlog.exe"
+	File "${COMPILED_BIN_DIR}"
 	CreateShortCut "$DESKTOP\Sherlog.lnk" "$INSTDIR\bin\sherlog.exe"
 
 SectionEnd
