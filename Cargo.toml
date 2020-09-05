@@ -4,6 +4,14 @@ version = "0.1.0"
 authors = ["Benjamin Richner"]
 edition = "2018"
 license = "GPLv3"
+description = "Log viewer and analysis tool"
+keywords = ["visualization", "log", "analyzer", "debug-tool"]
+categories = ["visualization", "parser-implementations"]
+
+[package.metadata.winres]
+ProductName = "Sherlog"
+OriginalFilename = "sherlog.exe"
+LegalCopyright = "Copyright © 2020 Benjamin Richner"
 
 [dependencies]
 cairo-rs = "0.9.1"
@@ -18,4 +26,4 @@ chrono = "0.4.15"
 regex = "1.3.9"
 zip = { git = "https://github.com/BenjaminRi/zip-rs.git", branch = "pkzip-cipher", version = "0.5", features = ["deflate"], default-features = false }
 [target.'cfg(windows)'.build-dependencies]
-windres = "0.2"
+winres = "0.1"
