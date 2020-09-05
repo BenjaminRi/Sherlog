@@ -103,8 +103,6 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		client_child_sources.push(sub_source);
 	}
 
-	//client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-
 	//Merge numbered files together (e.g. contr_ProcessManager and contr_ProcessManager_1)
 	//Note: The number was already stripped with strip_suffix.
 	glog_files.sort_unstable();
@@ -196,6 +194,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	//Case insensitive sort by log source name
 	contr_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
 	for mut source in &mut sensor_child_sources {
