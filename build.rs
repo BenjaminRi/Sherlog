@@ -10,7 +10,8 @@ fn compile_resource() {
 }
 
 fn main() {
-	#[cfg(windows)] {
+	#[cfg(windows)]
+	{
 		compile_resource();
 	}
 }
