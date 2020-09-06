@@ -7,6 +7,7 @@ Unicode true
 ; Includes
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
 !include "WinVer.nsh"
 !include "x64.nsh"
 
@@ -153,7 +154,7 @@ Section "Sherlog" Sherlog
 	IfFileExists "$INSTDIR\Uninstall.exe" 0 done_uninstall
 	DetailPrint "Uninstall previous version..."
 	SetDetailsPrint none
-	ExecWait "$INSTDIR\Uninstall.exe /S _?=$INSTDIR"
+	ExecWait "$INSTDIR\Uninstall.exe /S /KEEPSETT _?=$INSTDIR"
 	SetDetailsPrint lastused
 	done_uninstall:
 
@@ -177,6 +178,21 @@ SectionEnd
 ;-------------------------------------------------------------------------------
 ; Uninstaller Sections
 Section "Uninstall"
+	ClearErrors
+	Var /GLOBAL tmp
+	${GetOptions} $CMDLINE "/KEEPSETT" $tmp
+	IfErrors delete_sett keep_sett
+	delete_sett:
+	# Delete user settings (default if flag not found)
+	# MessageBox MB_OK "Not found (delete settings by default)"
+	# TODO: Implement once we actually have settings
+	ClearErrors
+	goto done_sett
+	keep_sett:
+	# Keep user settings (explicitly flagged to keep settings)
+	# MessageBox MB_OK "Found (keep settings)"
+	done_sett:
+	
 	Delete "$DESKTOP\Sherlog.lnk"
 	Delete "$INSTDIR\bin\sherlog.exe"
 	DetailPrint "Delete files..."
