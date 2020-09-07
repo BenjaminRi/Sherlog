@@ -4,6 +4,7 @@ extern crate zip;
 use chrono::prelude::DateTime;
 use chrono::prelude::NaiveDateTime;
 use chrono::prelude::Utc;
+use std::path::PathBuf;
 
 use super::super::model;
 use super::datetime_utils;
@@ -30,7 +31,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		} else {
 			archive.by_index(i).unwrap() //TODO: 21.06.2020: Handle ZipError!
 		};
-		let outpath = file.sanitized_name();
+		let outpath = PathBuf::from(file.name());
 		let stem = outpath.file_stem().unwrap();
 		let stem = stem.to_string_lossy();
 
