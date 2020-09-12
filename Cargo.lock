@@ -841,9 +841,8 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d30de6e58104bb7b9a94f34b52a2bdabb8a40b678a64201cd0069e3d7119b5ff"
+version = "0.5.6"
+source = "git+https://github.com/BenjaminRi/zip-rs.git?branch=pkzip-cipher#0b077c4baf1cbd69374d9577d34398cdbcc7fd63"
 dependencies = [
  "byteorder",
  "crc32fast",
