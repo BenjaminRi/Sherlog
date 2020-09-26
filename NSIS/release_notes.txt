@@ -6,30 +6,76 @@
 | Pull requests are welcome               |
 +-----------------------------------------+
 
-Sherlog v0.1 (23.03.2020) - Local alpha build
+-------------------------------------------------------------------------------
 
-- Initial release for alpha testing
+Sherlog v0.7 (27.09.2020) - Commit ID: 1eb5600c9a59f2a98efaf81b3a5b3ba3d169fed3
 
-Sherlog v0.2 (23.03.2020) - Local alpha build
+- Bugfix: Map Glog Severity "None" to Debug instead of Critical
+- Add a logo to Sherlog executable
+- Add metadata to Sherlog executable, in particular, the version
+- Technical: Various improvements in the installer
+- Technical: Update Rust crate dependencies, including GTK
+- Technical: Bundle updated GTK libraries with Windows installation
 
-- Prevent Windows console from opening
-- Various bug fixes
+Windows release: Sherlog-Setup-v0.7.0.exe
+SHA256: ECB880B14237E2A021DD1FF8B1DF3193585B6144CEEAF9257B154764955BFF13
 
-Sherlog v0.3 (07.04.2020) - Local alpha build
-
-- Put log files into clean tree structure
-- Various bug fixes
-
-Sherlog v0.4 (14.04.2020) - Local alpha build
-
-- Various bug fixes and improvements
-
-Sherlog v0.5 (04.05.2020) - Local alpha build
-
-- Add XLOG parser (client logs)
+-------------------------------------------------------------------------------
 
 Sherlog v0.6 (22.07.2020) - Commit ID: e41cc329e8778e957d510a815afdac1c2bdd4493
 
 - Add time delta calculator in the bottom left
 - Fix bug where seconds fractions were too small by a factor of 100 for all sensor and client logs
 - Add EtherCAT time correction
+
+Windows release: Sherlog-Setup-v0.6.exe
+SHA256: DD2EA8EA629BD37D50F49781713756D89844D6C096DAFE48ECBF08A94A287EC8
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.5 (04.05.2020) - Local alpha build
+
+- Add XLOG parser (client logs)
+
+Windows release: Sherlog-Setup-v0.5.exe
+SHA256: 5C70E9E0D6989115019E3C4C32F7718C33BCDE11BB518CA6680E1298FB147D51
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.4 (14.04.2020) - Local alpha build
+
+- Various bug fixes and improvements
+
+Windows release: Sherlog-Setup-v0.4.exe
+SHA256: 5224F9542A9C7F39CFC7137A9C46FB5F066A3CF7092B8D53DABE1A540E23B954
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.3 (07.04.2020) - Local alpha build
+
+- Put log files into clean tree structure
+- Various bug fixes
+
+Windows release: Sherlog-Setup-v0.3.exe
+SHA256: 2ABEC78E10BBA1EA6F092DE1ECBB735B38E97417DD36C0B3187D8B1F3167D72F
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.2 (23.03.2020) - Local alpha build
+
+- Prevent Windows console from opening
+- Various bug fixes
+
+Windows release: Sherlog-Setup-v0.2.exe
+SHA256: 4C9356AEED490541CED81740A12CE3D5D7E18A28498D7DE98A23CF9F3A687067
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.1 (23.03.2020) - Local alpha build
+
+- Initial release for alpha testing
+
+Windows release: Sherlog-Setup-v0.1.exe
+SHA256: A5A9942A55630E3360E63550588A2B23B72DBB627E63978F3531E1D1BB8C0016
+
+-------------------------------------------------------------------------------
