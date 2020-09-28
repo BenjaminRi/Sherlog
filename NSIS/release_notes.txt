@@ -8,7 +8,7 @@
 
 -------------------------------------------------------------------------------
 
-Sherlog v0.7 (27.09.2020) - Commit ID: 1eb5600c9a59f2a98efaf81b3a5b3ba3d169fed3
+Sherlog v0.7 (27.09.2020) - Commit ID: 4ef719f8432db381e58930d8f077dea43c44f459
 
 - Bugfix: Map Glog Severity "None" to Debug instead of Critical
 - Add a logo to Sherlog executable
@@ -18,7 +18,7 @@ Sherlog v0.7 (27.09.2020) - Commit ID: 1eb5600c9a59f2a98efaf81b3a5b3ba3d169fed3
 - Technical: Bundle updated GTK libraries with Windows installation
 
 Windows release: Sherlog-Setup-v0.7.0.exe
-SHA256: ECB880B14237E2A021DD1FF8B1DF3193585B6144CEEAF9257B154764955BFF13
+SHA256: 26C86BAB75C3E13629B8396B62CC2350E922446C6FC568D6B74D6EA60D3C55F2
 
 -------------------------------------------------------------------------------
 
