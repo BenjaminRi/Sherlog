@@ -1411,40 +1411,35 @@ fn main() {
 		gio::ApplicationFlags::HANDLES_OPEN,
 	)
 	.expect("Initialization failed...");
-	
-	// ---------------------------------------------------------------
-	// Log handling: Note that glib::log_set_handler cannot be used,
-	// as it is only available via feature "dox". Therefore, we
-	// cannot handle logs properly!
-	
-	/*fn printerr(msg: &str) {
-		println!("RustA: {}", msg);
-	}
 
-	fn printerr2(a: &str, b: glib::LogLevel, c: &str) {
-		println!("RustB: {}, {:?}, {}", a, b, c);
-	}*/
-	
+	// ---------------------------------------------------------------
+	// Log handling: Note that glib_sys::g_log_set_writer_func is not
+	// yet exposed via glib, therefore, we cannot do structured logging
+	// and we cannot catch Gtk errors! Structured logging completely
+	// ignores unstructured log handlers (glib::log_set_handler).
+
+	//fn printerr(msg: &str) {
+	//	println!("RustA: {}", msg);
+	//}
+
+	//fn printerr2(a: &str, b: glib::LogLevel, c: &str) {
+	//	println!("RustB: {}, {:?}, {}", a, b, c);
+	//}
+
 	//https://developer.gnome.org/glib/stable/glib-Warnings-and-Assertions.html
 	//glib::set_printerr_handler(printerr);
 	//glib::set_print_handler(printerr);
-	//g_log_set_handler
-	/*pub fn log_set_handler<P: Fn(&str, LogLevel, &str) + Send + Sync + 'static>(
-    log_domain: Option<&str>, 
-    log_levels: LogLevels, 
-    fatal: bool, 
-    recursion: bool, 
-    log_func: P
-	) -> LogHandlerId*/
-	
+
 	//https://stackoverflow.com/questions/39509231/gdb-debugging-with-breakpoint-gtk-warning-invalid-text-buffer-iterator
 	//https://developer.gnome.org/glib/stable/glib-Message-Logging.html#g-log-set-handler
-	//glib::log_set_handler(None, glib::LogLevels::all(), true, true, printerr2);
+	//glib::log_set_handler(Some("Gtk"), glib::LogLevels::all(), true, true, printerr2);
 	//glib::log_set_default_handler(printerr2);
-	
+
 	//glib::g_log!("test", LogLevel::Warning, "test");
 	//glib::g_warning!("test2", "test2");
-	
+	//glib::g_log!("Gtk", LogLevel::Warning, "test");
+	//glib::g_warning!("Gtk", "test2");
+
 	// End of log handling. Have to wait until Gtk fixes this problem.
 	// ---------------------------------------------------------------
 
