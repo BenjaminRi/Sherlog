@@ -140,6 +140,8 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 
 	let mut contr_child_sources = Vec::new();
 	let mut sensor_child_sources: std::vec::Vec<model::LogSource> = Vec::new();
+	let mut cbox_child_sources = Vec::new();
+	let mut probe_child_sources = Vec::new();
 	let mut unknown_child_sources = Vec::new();
 
 	for mut source in child_sources {
@@ -187,6 +189,22 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				continue;
 			}
 		}
+		
+		//Connect Box logs
+		if source.name.starts_with("connectbox_") {
+			//Remove "connectbox_" to make it look nicer
+			source.name = source.name.split_off(11);
+			cbox_child_sources.push(source);
+			continue;
+		}
+		
+		//Probe logs
+		if source.name.starts_with("ap21_") {
+			//Remove "ap21_" to make it look nicer
+			source.name = source.name.split_off(5);
+			probe_child_sources.push(source);
+			continue;
+		}
 
 		//Unknown logs
 		unknown_child_sources.push(source);
@@ -196,6 +214,8 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	contr_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	sensor_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	cbox_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	probe_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
 	for mut source in &mut sensor_child_sources {
@@ -216,6 +236,23 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	};
 
 	let mut sources_vec = vec![client_logs, contr_logs, sensor_logs];
+	
+	if !cbox_child_sources.is_empty() {
+		let cbox_logs = model::LogSource {
+			name: "Connect Box".to_string(),
+			children: { model::LogSourceContents::Sources(cbox_child_sources) },
+		};
+		sources_vec.push(cbox_logs);
+	}
+	
+	if !probe_child_sources.is_empty() {
+		let probe_logs = model::LogSource {
+			name: "Probe".to_string(),
+			children: { model::LogSourceContents::Sources(probe_child_sources) },
+		};
+		sources_vec.push(probe_logs);
+	}
+	
 	if !unknown_child_sources.is_empty() {
 		let unknown_logs = model::LogSource {
 			name: "Unknown".to_string(),
