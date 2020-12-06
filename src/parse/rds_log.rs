@@ -5,39 +5,8 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Read;
 
 use std::io::Result;
-use std::slice::Iter;
-
-#[allow(dead_code)]
-pub struct StringReader<'a> {
-	iter: Iter<'a, u8>,
-}
-
-#[allow(dead_code)]
-impl<'a> StringReader<'a> {
-	/// Wrap a string in a `StringReader`, which implements `std::io::Read`.
-	pub fn new(data: &'a str) -> Self {
-		Self {
-			iter: data.as_bytes().iter(),
-		}
-	}
-}
-
-#[allow(dead_code)]
-impl<'a> Read for StringReader<'a> {
-	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		for i in 0..buf.len() {
-			if let Some(x) = self.iter.next() {
-				buf[i] = *x;
-			} else {
-				return Ok(i);
-			}
-		}
-		Ok(buf.len())
-	}
-}
 
 //-------------------------------------------------------------
 
@@ -73,8 +42,6 @@ fn read_until_pipe_or_newline(mut reader: impl std::io::Read, buf: &mut Vec<u8>)
 }
 
 pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) -> model::LogSource {
-	//let mut reader = StringReader::new("2020-11-09 16:43:36.2404|TRACE|dr|Using UI language de-CH...\n");
-
 	let mut log_entries = Vec::<model::LogEntry>::new();
 	let mut bufreader = BufReader::new(reader);
 	let mut buf = Vec::<u8>::with_capacity(512);
