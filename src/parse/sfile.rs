@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use super::super::model;
 use super::datetime_utils;
 use super::glog;
+use super::rds_log;
+use super::scanlib_log;
 use super::xlog;
 
 use std::collections::HashMap;
@@ -23,8 +25,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	let mut glog_files = Vec::new();
 
 	let mut client_child_sources = Vec::new();
+	let mut rds_child_sources = Vec::new();
+	let mut scanlib_child_sources = Vec::new();
 	let mut child_sources = Vec::new();
 	child_sources.reserve(archive.len());
+
 	for i in 0..archive.len() {
 		let file = if let Some(password) = SFILE_PASSWORD {
 			archive.by_index_decrypt(i, password.as_bytes()).unwrap() //TODO: 21.06.2020: Handle ZipError!
@@ -34,9 +39,42 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let outpath = PathBuf::from(file.name());
 		let stem = outpath.file_stem().unwrap();
 		let stem = stem.to_string_lossy();
-
 		//println!("File contained: {}", &stem);
-		if let Some(extension) = outpath.extension() {
+
+		// .ZIP specification, Version: 6.3.9, Paragraph 4.4.17 file name: (Variable)
+		// All slashes MUST be forward slashes '/' as opposed to backwards slashes '\' [...]
+		//
+		// Therefore, we can safely match folders with `/`
+		if outpath.starts_with("RDS/") {
+			if let Some(extension) = outpath.extension() {
+				match extension.to_string_lossy().as_ref() {
+					"log" => {
+						if stem.starts_with("ScanLib_") {
+							println!("Log file (ScanLib): {}", &stem);
+							let root = model::LogSource {
+								name: stem.to_string(),
+								children: {
+									model::LogSourceContents::Entries(Vec::<model::LogEntry>::new())
+								},
+							};
+							scanlib_child_sources.push(scanlib_log::to_log_entries(file, root));
+						} else {
+							println!("Log file (RDS): {}", &stem);
+							let root = model::LogSource {
+								name: stem.to_string(),
+								children: {
+									model::LogSourceContents::Entries(Vec::<model::LogEntry>::new())
+								},
+							};
+							rds_child_sources.push(rds_log::to_log_entries(file, root));
+						}
+					}
+					unknown_extension => {
+						println!("Unknown extension in RDS folder: {}", unknown_extension)
+					}
+				}
+			}
+		} else if let Some(extension) = outpath.extension() {
 			match extension.to_string_lossy().as_ref() {
 				"glog" => {
 					let mut s = stem.to_string();
@@ -189,7 +227,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				continue;
 			}
 		}
-		
+
 		//Connect Box logs
 		if source.name.starts_with("connectbox_") {
 			//Remove "connectbox_" to make it look nicer
@@ -197,7 +235,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			cbox_child_sources.push(source);
 			continue;
 		}
-		
+
 		//Probe logs
 		if source.name.starts_with("ap21_") {
 			//Remove "ap21_" to make it look nicer
@@ -216,6 +254,8 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	client_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	cbox_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	probe_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	rds_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+	scanlib_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 	unknown_child_sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
 	for mut source in &mut sensor_child_sources {
@@ -236,7 +276,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	};
 
 	let mut sources_vec = vec![client_logs, contr_logs, sensor_logs];
-	
+
 	if !cbox_child_sources.is_empty() {
 		let cbox_logs = model::LogSource {
 			name: "Connect Box".to_string(),
@@ -244,7 +284,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		};
 		sources_vec.push(cbox_logs);
 	}
-	
+
 	if !probe_child_sources.is_empty() {
 		let probe_logs = model::LogSource {
 			name: "Probe".to_string(),
@@ -252,7 +292,23 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		};
 		sources_vec.push(probe_logs);
 	}
-	
+
+	if !rds_child_sources.is_empty() {
+		let rds_logs = model::LogSource {
+			name: "RDS".to_string(),
+			children: { model::LogSourceContents::Sources(rds_child_sources) },
+		};
+		sources_vec.push(rds_logs);
+	}
+
+	if !scanlib_child_sources.is_empty() {
+		let scanlib_logs = model::LogSource {
+			name: "ScanLib".to_string(),
+			children: { model::LogSourceContents::Sources(scanlib_child_sources) },
+		};
+		sources_vec.push(scanlib_logs);
+	}
+
 	if !unknown_child_sources.is_empty() {
 		let unknown_logs = model::LogSource {
 			name: "Unknown".to_string(),
