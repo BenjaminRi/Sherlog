@@ -298,13 +298,16 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 
 enum RdsLogParserState {
 	ExpectDatetime,
+	// Some log files contain an error code.
+	// Other log files skip straight to the severity.
+	// This is why the parser handles both in this state.
 	ExpectErrcodeOrSeverity,
 	ExpectSeverity,
 	ExpectLogSource,
 	ExpectMessage,
 	// Some log messages contain line breaks.
 	// Therefore, we need to tentatively parse the datetime
-	// and if it fails, we are still emitting the message.
+	// and if it fails, we are still parsing the message.
 	ExpectDatetimeTentative,
 }
 
