@@ -8,8 +8,6 @@ use std::io::BufReader;
 
 use std::io::Result;
 
-//-------------------------------------------------------------
-
 pub fn parse_rds_datetime(dt_string: &str) -> Option<chrono::DateTime<Utc>> {
 	// TODO: What time zone does RDS log with? UTC? Local time?
 	// If it's local time, we will never know the actual time because the logs
@@ -214,18 +212,31 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 				}
 			}
 			RdsLogParserState::ExpectDatetimeTentative => {
-				let prev_size = buf.len();
+				let mut prev_size = buf.len();
 				if let Ok(bytes_read) = read_until_pipe_or_newline(&mut bufreader, &mut buf) {
 					if bytes_read != 0 {
 						if buf.last() == Some(&b'\n') {
-							//We are in a multiline message. Just continue reading.
-							parser_state = RdsLogParserState::ExpectDatetimeTentative;
+							//We are in a multiline message.
+							//Just continue reading with ExpectDatetimeTentative.
 						} else if buf.last() == Some(&b'|') {
-							buf.pop();
+							let mut prev_last_idx = std::cmp::max(prev_size, 1) - 1;
+							assert!(buf.len() != 0); //We matched Some for the last element
+							let last_idx = buf.len() - 1;
+
+							//Skip last byte, as it is the pipe symbol b'|'
 							if let Ok(dt_string) =
-								std::str::from_utf8(&buf[(std::cmp::max(prev_size, 1) - 1)..])
+								std::str::from_utf8(&buf[prev_last_idx..last_idx])
 							{
 								if let Some(timestamp) = parse_rds_datetime(dt_string) {
+									//Trim line ending from the end of the message
+									if let Some(b'\n') = buf.get(prev_last_idx) {
+										prev_size = prev_last_idx;
+										prev_last_idx = std::cmp::max(prev_size, 1) - 1;
+									}
+									if let Some(b'\r') = buf.get(prev_last_idx) {
+										prev_size = prev_last_idx;
+									}
+									//Emit message
 									let message_str = String::from_utf8_lossy(&buf[..prev_size]);
 									if let std::borrow::Cow::Owned(owned_str) = &message_str {
 										println!("MALFORMED UTF-8 in Message: {}", owned_str);
@@ -240,9 +251,12 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 									log_entries.push(finalized_log_entry);
 
 									log_entry.timestamp = timestamp;
+									parser_state = RdsLogParserState::ExpectErrcodeOrSeverity;
+									buf.clear();
 								} else {
 									//Cannot parse datetime, so it must be the continuation
 									//of a log message...
+									//Just continue reading with ExpectDatetimeTentative.
 								}
 							} else {
 								//TODO: Notify of malformed UTF-8?
@@ -250,9 +264,9 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 									"MALFORMED UTF-8 in datetime string: {}",
 									&String::from_utf8_lossy(&buf)
 								);
+								parser_state = RdsLogParserState::ExpectErrcodeOrSeverity;
+								buf.clear();
 							}
-							buf.clear();
-							parser_state = RdsLogParserState::ExpectErrcodeOrSeverity;
 						} else {
 							//Log file ended before delimiter was found.
 							let message_str = String::from_utf8_lossy(&buf);
