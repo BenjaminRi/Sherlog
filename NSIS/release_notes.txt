@@ -8,6 +8,16 @@
 
 -------------------------------------------------------------------------------
 
+Sherlog v0.8.0 (07.12.2020) - Commit ID: af55c180731d49fa973ab5f10b731b498f1f7e3a
+
+- Add Probe and Connect Box to parser
+- Add RDS log parser
+
+Windows release: Sherlog-Setup-v0.8.0.exe
+SHA256: 0555C1ADE5DF3FFE8F9F404AE597E1B0D6A3B5F6DE427508CE219FA165EF35B0
+
+-------------------------------------------------------------------------------
+
 Sherlog v0.7 (27.09.2020) - Commit ID: 4ef719f8432db381e58930d8f077dea43c44f459
 
 - Bugfix: Map Glog Severity "None" to Debug instead of Critical
