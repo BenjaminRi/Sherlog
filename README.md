@@ -4,11 +4,13 @@
 
 Sherlog visualizes log files. The point of this program is to provide a rich GUI for developers to analyze their systems. Log files often come in text form and various formats. Given the right set of parsers, Sherlog provides a way to look at and intersperse these log files while providing filters and sort functions. This allows a better insight into systems that generate logs.
 
+![Sherlog GUI screenshot](/doc/sherlog_gui_screenshot.png)
+
 Sherlog uses the notion of log sources. A log source represents either a group of child log sources or it contains log entries. A log source is like a folder in a file system and the GUI visualizes them in the familiar tree structure known from file explorers. A log entry mainly contains of a timestamp, a severity and a text message.
 
 ## State of the implementation
 
-The program is written in Rust, backed by GTK+ 3 to display the GUI. So far, the log source viewer and the data structures are done. Visualizing, sorting and filtering the logs is a work in progress. The program is in beta stage and can be used on a daily basis. It is compatible with Windows, Linux and all other operating systems that support Rust and GTK+ 3.
+The parsers are done, the GUI is functional, albeit minimal, and has been in daily use by various people for over a year. The implementation of GUI improvements and new features is ongoing. Sherlog is still considered beta software, but is not far from a 1.0 release. The program is written in Rust, backed by GTK+ 3 to display the GUI. It is compatible with Windows, Linux and all other operating systems that support Rust and GTK+ 3.
 
 ## How to compile
 
