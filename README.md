@@ -6,7 +6,7 @@ Sherlog visualizes log files. The point of this program is to provide a rich GUI
 
 ![Sherlog GUI screenshot](/doc/sherlog_gui_screenshot.png)
 
-Sherlog uses the notion of log sources. A log source represents either a group of child log sources or it contains log entries. A log source is like a folder in a file system and the GUI visualizes them in the familiar tree structure known from file explorers. A log entry mainly contains of a timestamp, a severity and a text message.
+Sherlog uses the notion of log sources. A log source represents either a group of child log sources or it contains log entries. A log source is like a folder in a file system and the GUI visualizes them in the familiar tree structure known from file explorers. A log entry mainly consists of a timestamp, a severity and a text message.
 
 ## State of the implementation
 
