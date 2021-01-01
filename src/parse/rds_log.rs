@@ -220,7 +220,10 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							//Just continue reading with ExpectDatetimeTentative.
 						} else if buf.last() == Some(&b'|') {
 							let mut prev_last_idx = std::cmp::max(prev_size, 1) - 1;
-							assert!(buf.len() != 0); //We matched Some for the last element
+							#[allow(clippy::len_zero)]
+							{
+								assert!(buf.len() != 0); //We matched Some for the last element
+							}
 							let last_idx = buf.len() - 1;
 
 							//Skip last byte, as it is the pipe symbol b'|'

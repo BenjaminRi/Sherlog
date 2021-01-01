@@ -228,7 +228,7 @@ impl LogStoreLinear {
 	}
 
 	pub fn percentage_to_offset(&self, perc: f64, window_size: usize) -> Option<usize> {
-		if perc < 0.0 || perc > 1.0 {
+		if !(0.0..=1.0).contains(&perc) {
 			return None;
 		}
 		if window_size == 0 {

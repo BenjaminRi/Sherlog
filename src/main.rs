@@ -1158,7 +1158,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		drawing_area: &gtk::DrawingArea,
 	) {
 		let search_text = w.get_text().as_str().to_string();
-		if search_text == "" {
+		if search_text.is_empty() {
 			println!("Search empty");
 			store.filter_store(
 				&|_entry: &LogEntryExt| true,
