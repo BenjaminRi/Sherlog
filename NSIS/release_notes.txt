@@ -8,6 +8,15 @@
 
 -------------------------------------------------------------------------------
 
+Sherlog v0.8.1 (03.02.2020) - Commit ID: 730fc7510041eafa868c261305c5a118113b5170
+
+- Case insensitive extension matching. Now able to open *.sFile, etc.
+
+Windows release: Sherlog-Setup-v0.8.1.exe
+SHA256: B8928C41D406D4FE75616F571DDA912E05E40CBA10554C6133F8813B9EBF74F0
+
+-------------------------------------------------------------------------------
+
 Sherlog v0.8.0 (07.12.2020) - Commit ID: af55c180731d49fa973ab5f10b731b498f1f7e3a
 
 - Add Probe and Connect Box to parser
