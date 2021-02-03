@@ -41,7 +41,7 @@ impl From<std::io::Error> for LogParseError {
 pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, LogParseError> {
 	let extension = path.extension();
 	if let Some(extension) = extension {
-		match extension.to_string_lossy().as_ref() {
+		match extension.to_string_lossy().to_lowercase().as_ref() {
 			// ../logfiles/example.glog
 			"glog" => {
 				let file = File::open(&path)?;
