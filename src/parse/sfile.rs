@@ -99,12 +99,48 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	//Arrange Client logs into their respective channels
 	let mut client_log_sources = HashMap::<String, model::LogSource>::new();
 	for file_source in client_child_sources {
-		let split_name = file_source.name.split('_');
-		let channel_name = if let Some(channel) = split_name.skip(2).take(1).next() {
-			channel
+		let mut rsplitn_name = file_source.name.rsplitn(4, '_');
+
+		let _date_time = if let Some(date_time) = rsplitn_name.next() {
+			// Parse date_time. Example: "2021-03-09-08-07-25-8527"
+			let padded_date_time = format!("{}00000", date_time); // Pad fractional seconds to nanoseconds
+			if let Ok(ndt) =
+				NaiveDateTime::parse_from_str(&padded_date_time, "%Y-%m-%d-%H-%M-%S-%f")
+			{
+				DateTime::<Utc>::from_utc(ndt, Utc)
+			} else {
+				// Invalid date_time format, parse error
+				DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+			}
 		} else {
-			"Unknown"
+			// rsplitn always returns at least one iterator element
+			unreachable!()
 		};
+
+		let channel_name = if let Some(channel_name) = rsplitn_name.next() {
+			channel_name
+		} else {
+			// Too few iterator elements (underscores)
+			// Use entire file name (without ".xlog" extension) as fallback
+			&file_source.name
+		};
+
+		let _process_id = if let Some(process_id) = rsplitn_name
+			.next()
+			.map_or(None, |pid_str| pid_str.parse::<u32>().ok())
+		{
+			process_id // Windows PIDs are stored in nonzero DWORD (u32)
+		} else {
+			0 // Invalid PID
+		};
+
+		let _application_name = if let Some(application_name) = rsplitn_name.next() {
+			application_name
+		} else {
+			"Unknown application name"
+		};
+
+		//println!("{:?} {:?} {:?} {:?}", _date_time, channel_name, _process_id, _application_name);
 
 		let source_option = client_log_sources.get_mut(channel_name);
 		if let Some(source) = source_option {
