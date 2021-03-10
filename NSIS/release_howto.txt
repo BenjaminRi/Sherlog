@@ -1,4 +1,4 @@
-- Increase crate version and commit in git repo
+- Increase crate version, build project again (also add Cargo.lock) and commit in git repo
 - Disable Windows console in main.rs
 - Set sfile password environment variable, trigger sfile.rs recompile
 - Run NSIS to create a release installer

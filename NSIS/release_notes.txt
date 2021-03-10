@@ -8,6 +8,15 @@
 
 -------------------------------------------------------------------------------
 
+Sherlog v0.8.2 (10.03.2021) - Commit ID: c9761e674d199600433bab4111e051efc01c9015
+
+- Fix xlog file name parsing. Underscores in application names are now handled properly
+
+Windows release: Sherlog-Setup-v0.8.2.exe
+SHA256: 9C439FF5803DE7B6027B3D123537F0A6BEACDBC653896C22A24B88F2E256D0CA
+
+-------------------------------------------------------------------------------
+
 Sherlog v0.8.1 (03.02.2020) - Commit ID: 730fc7510041eafa868c261305c5a118113b5170
 
 - Case insensitive extension matching. Now able to open *.sFile, etc.
