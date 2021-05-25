@@ -1,6 +1,8 @@
 # TODOs
 
 ## Open:
+Do not sort log messages unstable: Reorders log messages with same timestamp!
+
 Right click also sets anchor. Is this behaviour desired?
 Copy-paste of log entries: Also paste severity!
 Scroll bar if list is small: Bigger slider
