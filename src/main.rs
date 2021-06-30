@@ -59,14 +59,14 @@ fn toggle_row(
 ) {
 	//println!("Path: {:?}", path.get_indices());
 
-	let iter = tree_store.get_iter(&path).unwrap();
+	let iter = tree_store.iter(&path).unwrap();
 	let mut active = tree_store
-		.get_value(&iter, LogSourcesColumns::Active as i32)
-		.get_some::<bool>()
+		.value(&iter, LogSourcesColumns::Active as i32)
+		.get::<bool>()
 		.unwrap();
 	let mut inconsistent = tree_store
-		.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-		.get_some::<bool>()
+		.value(&iter, LogSourcesColumns::Inconsistent as i32)
+		.get::<bool>()
 		.unwrap();
 
 	if inconsistent || !active {
@@ -87,15 +87,15 @@ fn toggle_row(
 		let mut prev_active = None;
 		if path.up() {
 			path.append_index(0);
-			while let Some(iter) = tree_store.get_iter(&path) {
+			while let Some(iter) = tree_store.iter(&path) {
 				let n_active = tree_store
-					.get_value(&iter, LogSourcesColumns::Active as i32)
-					.get_some::<bool>()
+					.value(&iter, LogSourcesColumns::Active as i32)
+					.get::<bool>()
 					.unwrap();
 
 				let n_inconsistent = tree_store
-					.get_value(&iter, LogSourcesColumns::Inconsistent as i32)
-					.get_some::<bool>()
+					.value(&iter, LogSourcesColumns::Inconsistent as i32)
+					.get::<bool>()
 					.unwrap();
 
 				if (prev_active != None && Some(n_active) != prev_active) || n_inconsistent {
@@ -112,8 +112,8 @@ fn toggle_row(
 		#[allow(clippy::redundant_clone)]
 		let mut path_up = path.clone();
 		let mut level_inconsistent = check_inconsistent(tree_store, path_up.clone());
-		while path_up.up() && path_up.get_depth() > 0 {
-			let iter = tree_store.get_iter(&path_up).unwrap();
+		while path_up.up() && path_up.depth() > 0 {
+			let iter = tree_store.iter(&path_up).unwrap();
 			if level_inconsistent {
 				tree_store.set_value(&iter, LogSourcesColumns::Active as u32, &false.to_value());
 			} else {
@@ -137,15 +137,15 @@ fn toggle_row(
 		if let Some(iter) = tree_store.iter_children(Some(iter)) {
 			loop {
 				/*let n_text = tree_store
-					.get_value(&iter, LogSourcesColumns::Text as i32)
+					.value(&iter, LogSourcesColumns::Text as i32)
 					.get::<String>()
 					.unwrap()
 					.unwrap();
 
 				println!("{}", n_text);*/
 				let n_active = tree_store
-					.get_value(&iter, LogSourcesColumns::Active as i32)
-					.get_some::<bool>()
+					.value(&iter, LogSourcesColumns::Active as i32)
+					.get::<bool>()
 					.unwrap();
 				if n_active != active {
 					tree_store.set_value(
@@ -155,8 +155,8 @@ fn toggle_row(
 					);
 				}
 				let n_id = tree_store
-					.get_value(&iter, LogSourcesColumns::Id as i32)
-					.get_some::<u32>()
+					.value(&iter, LogSourcesColumns::Id as i32)
+					.get::<u32>()
 					.unwrap();
 				//println!("activate_children... {}", n_id);
 				sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
@@ -175,8 +175,8 @@ fn toggle_row(
 	}
 	let mut sources = Vec::<u32>::new();
 	let id = tree_store
-		.get_value(&iter, LogSourcesColumns::Id as i32)
-		.get_some::<u32>()
+		.value(&iter, LogSourcesColumns::Id as i32)
+		.get::<u32>()
 		.unwrap();
 	sources.push(id);
 
@@ -247,7 +247,7 @@ fn draw(
 	//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
 	//println!("{}", store.store.len());
 
-	//println!("w: {} h: {}", drawing_area.get_allocated_width(), drawing_area.get_allocated_height());
+	//println!("w: {} h: {}", drawing_area.allocated_width(), drawing_area.allocated_height());
 
 	ctx.set_source_rgb(1.0, 1.0, 1.0);
 	ctx.paint();
@@ -265,8 +265,8 @@ fn draw(
 	ctx.close_path();
 	ctx.stroke();*/
 
-	let h = drawing_area.get_allocated_height();
-	let w = drawing_area.get_allocated_width();
+	let h = drawing_area.allocated_height();
+	let w = drawing_area.allocated_width();
 
 	ctx.set_source_rgb(0.0, 0.0, 0.0);
 
@@ -361,7 +361,7 @@ fn draw(
 			+ f64::max(0.0, store.line_spacing - store.font_size) / 2.0;
 		//Anchor point of text is bottom left, excluding descent.
 		//We want to anchor on top left though, so calculate that away:
-		let font_offset_y = offset_y + store.font_size - ctx.font_extents().descent;
+		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent;
 
 		let date_str = entry.timestamp.format("%d.%m.%y %T%.3f").to_string();
 		ctx.move_to(store.border_left, font_offset_y);
@@ -468,7 +468,7 @@ fn handle_evt(
 	evt: &gdk::Event,
 ) -> gtk::Inhibit {
 	//_drawing_area.queue_draw();
-	if evt.get_event_type() != gdk::EventType::MotionNotify {
+	if evt.event_type() != gdk::EventType::MotionNotify {
 		//Performance test
 		/*let mut a = 5.0;
 		for entry in _store.store.iter() {
@@ -481,7 +481,7 @@ fn handle_evt(
 				model::LogLevel::Trace => { a += 2.158; },
 			}
 		}*/
-		println!("Event: {:?}", evt.get_event_type());
+		println!("Event: {:?}", evt.event_type());
 	}
 	gtk::Inhibit(false)
 }
@@ -493,7 +493,7 @@ fn handle_evt_scroll(
 ) -> gtk::Inhibit {
 	let scroll_speed = 3;
 	let mut dirty = false;
-	match evt.get_direction() {
+	match evt.direction() {
 		gdk::ScrollDirection::Up => {
 			dirty = store.scroll(-scroll_speed, store.visible_lines);
 		}
@@ -517,22 +517,22 @@ fn handle_evt_press(
 	drawing_area: &DrawingArea,
 	evt: &gdk::EventButton,
 ) -> gtk::Inhibit {
-	//println!("PRESS pos:  {:?}", evt.get_position());
+	//println!("PRESS pos:  {:?}", evt.position());
 	//println!("PRESS root: {:?}", evt.get_root());
 
 	store.mouse_down = true;
-	if evt.get_position().0 >= store.scroll_bar.thumb_x
-		&& evt.get_position().0 <= store.scroll_bar.thumb_x + store.scroll_bar.thumb_width
-		&& evt.get_position().1 >= store.scroll_bar.thumb_y
-		&& evt.get_position().1 <= store.scroll_bar.thumb_y + store.scroll_bar.thumb_height
+	if evt.position().0 >= store.scroll_bar.thumb_x
+		&& evt.position().0 <= store.scroll_bar.thumb_x + store.scroll_bar.thumb_width
+		&& evt.position().1 >= store.scroll_bar.thumb_y
+		&& evt.position().1 <= store.scroll_bar.thumb_y + store.scroll_bar.thumb_height
 	{
 		store.thumb_drag = true;
-		store.thumb_drag_x = evt.get_position().0 - store.scroll_bar.thumb_x;
-		store.thumb_drag_y = evt.get_position().1 - store.scroll_bar.thumb_y;
+		store.thumb_drag_x = evt.position().0 - store.scroll_bar.thumb_x;
+		store.thumb_drag_y = evt.position().1 - store.scroll_bar.thumb_y;
 		store.hover_line = None;
-	} else if !(evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top)
+	} else if !(evt.position().0 < store.border_left || evt.position().1 < store.border_top)
 	{
-		let line = ((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+		let line = ((evt.position().1 - store.border_top) / store.line_spacing) as usize;
 		if line < store.visible_lines {
 			let clicked_line = store.rel_to_abs_offset(line);
 
@@ -611,7 +611,7 @@ fn handle_evt_motion(
 	evt: &gdk::EventMotion,
 ) -> gtk::Inhibit {
 	if store.thumb_drag {
-		store.scroll_bar.thumb_y = evt.get_position().1 - store.thumb_drag_y;
+		store.scroll_bar.thumb_y = evt.position().1 - store.thumb_drag_y;
 		store.scroll_bar.thumb_rel_offset = store.scroll_bar.thumb_y - store.scroll_bar.y;
 		store.scroll_bar.scroll_perc = (store.scroll_bar.thumb_rel_offset
 			- store.scroll_bar.thumb_margin)
@@ -626,15 +626,15 @@ fn handle_evt_motion(
 		store.viewport_offset = store
 			.percentage_to_offset(store.scroll_bar.scroll_perc, store.visible_lines)
 			.unwrap_or(0);
-		println!("MOTION {:?}", evt.get_position());
+		println!("MOTION {:?}", evt.position());
 		drawing_area.queue_draw();
 	} else {
 		let current_hover = {
-			if evt.get_position().0 < store.border_left || evt.get_position().1 < store.border_top {
+			if evt.position().0 < store.border_left || evt.position().1 < store.border_top {
 				None
 			} else {
 				let line =
-					((evt.get_position().1 - store.border_top) / store.line_spacing) as usize;
+					((evt.position().1 - store.border_top) / store.line_spacing) as usize;
 				if line >= store.visible_lines {
 					None
 				} else {
@@ -889,8 +889,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	// left pane
 	let left_store = TreeStore::new(&[
-		glib::Type::Bool,
-		glib::Type::Bool,
+		glib::Type::BOOL,
+		glib::Type::BOOL,
 		String::static_type(),
 		glib::Type::U32,
 		glib::Type::U64,
@@ -910,12 +910,12 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			move |_w, l_it, r_it| {
 				//Crashes. See: https://github.com/gtk-rs/gtk/issues/960
 				let l_id = store_clone
-					.get_value(&l_it, LogSourcesColumns::ChildCount as i32)
-					.get_some::<u64>()
+					.value(&l_it, LogSourcesColumns::ChildCount as i32)
+					.get::<u64>()
 					.unwrap();
 				let r_id = store_clone
-					.get_value(&r_it, LogSourcesColumns::ChildCount as i32)
-					.get_some::<u64>()
+					.value(&r_it, LogSourcesColumns::ChildCount as i32)
+					.get::<u64>()
 					.unwrap();
 				l_id.cmp(&r_id)
 			},
@@ -949,7 +949,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 		{
 			let renderer_text = CellRendererText::new();
-			renderer_text.set_alignment(0.0, 0.0);
+			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
@@ -988,7 +988,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 		{
 			let renderer_text = CellRendererText::new();
-			renderer_text.set_alignment(0.0, 0.0);
+			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
 			column.pack_start(&renderer_text, false);
 			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
 		}
@@ -1004,18 +1004,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			parent,
 			None,
 			&[
-				LogSourcesColumns::Active as u32,
-				LogSourcesColumns::Inconsistent as u32,
-				LogSourcesColumns::Text as u32,
-				LogSourcesColumns::Id as u32,
-				LogSourcesColumns::ChildCount as u32,
-			],
-			&[
-				&true,
-				&false,
-				&log_source.name,
-				&log_source.id,
-				&log_source.child_cnt,
+				(LogSourcesColumns::Active as u32, &true),
+				(LogSourcesColumns::Inconsistent as u32, &false),
+				(LogSourcesColumns::Text as u32, &log_source.name),
+				(LogSourcesColumns::Id as u32, &log_source.id),
+				(LogSourcesColumns::ChildCount as u32, &log_source.child_cnt),
 			],
 		);
 		match &log_source.children {
@@ -1049,10 +1042,10 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		severity: model::LogLevel,
 		drawing_area: &gtk::DrawingArea,
 	) {
-		println!("Active: {} ({:?})", w.get_active(), severity);
+		println!("Active: {} ({:?})", w.is_active(), severity);
 		store.filter_store(
 			&|entry: &LogEntryExt| entry.severity == severity,
-			w.get_active(),
+			w.is_active(),
 			crate::model_internal::VISIBLE_OFF_SEVERITY,
 		);
 		drawing_area.queue_draw();
@@ -1157,7 +1150,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		store: &mut LogStoreLinear,
 		drawing_area: &gtk::DrawingArea,
 	) {
-		let search_text = w.get_text().as_str().to_string();
+		let search_text = w.text().as_str().to_string();
 		if search_text.is_empty() {
 			println!("Search empty");
 			store.filter_store(
@@ -1314,20 +1307,20 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		window.connect_key_press_event(move |_window, event_key| {
 			println!(
 				"KEY PRESSED! {} {}",
-				event_key.get_keyval(),
-				event_key.get_hardware_keycode()
+				event_key.keyval(),
+				event_key.hardware_keycode()
 			);
-			if event_key.get_keyval() == gdk::keys::constants::Control_L
-				|| event_key.get_keyval() == gdk::keys::constants::Control_R
+			if event_key.keyval() == gdk::keys::constants::Control_L
+				|| event_key.keyval() == gdk::keys::constants::Control_R
 			{
 				store_rc_clone.borrow_mut().pressed_ctrl = true;
 			}
-			if event_key.get_keyval() == gdk::keys::constants::Shift_L
-				|| event_key.get_keyval() == gdk::keys::constants::Shift_R
+			if event_key.keyval() == gdk::keys::constants::Shift_L
+				|| event_key.keyval() == gdk::keys::constants::Shift_R
 			{
 				store_rc_clone.borrow_mut().pressed_shift = true;
 			}
-			if event_key.get_keyval() == gdk::keys::constants::c
+			if event_key.keyval() == gdk::keys::constants::c
 				&& store_rc_clone.borrow().pressed_ctrl
 			{
 				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
@@ -1368,16 +1361,16 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		window.connect_key_release_event(move |_window, event_key| {
 			println!(
 				"KEY RELEASED! {} {}",
-				event_key.get_keyval(),
-				event_key.get_hardware_keycode()
+				event_key.keyval(),
+				event_key.hardware_keycode()
 			);
-			if event_key.get_keyval() == gdk::keys::constants::Control_L
-				|| event_key.get_keyval() == gdk::keys::constants::Control_R
+			if event_key.keyval() == gdk::keys::constants::Control_L
+				|| event_key.keyval() == gdk::keys::constants::Control_R
 			{
 				store_rc_clone.borrow_mut().pressed_ctrl = false;
 			}
-			if event_key.get_keyval() == gdk::keys::constants::Shift_L
-				|| event_key.get_keyval() == gdk::keys::constants::Shift_R
+			if event_key.keyval() == gdk::keys::constants::Shift_L
+				|| event_key.keyval() == gdk::keys::constants::Shift_R
 			{
 				store_rc_clone.borrow_mut().pressed_shift = false;
 			}
@@ -1397,7 +1390,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	let mut result = Vec::new();
 	for gio_file in gio_files {
-		result.push(gio_file.get_path().expect("Invalid file path"));
+		result.push(gio_file.path().expect("Invalid file path"));
 	}
 	result
 }
@@ -1409,8 +1402,7 @@ fn main() {
 	let application = gtk::Application::new(
 		Some("com.github.BenjaminRi.Sherlog"),
 		gio::ApplicationFlags::HANDLES_OPEN,
-	)
-	.expect("Initialization failed...");
+	);
 
 	// ---------------------------------------------------------------
 	// Log handling: Note that glib_sys::g_log_set_writer_func is not
@@ -1447,7 +1439,7 @@ fn main() {
 	// https://gtk-rs.org/docs/glib/enum.OptionArg.html
 	application.add_main_option(
 		"CTest",
-		glib::Char::new('c').unwrap(),
+		glib::Char::from(b'c'),
 		glib::OptionFlags::IN_MAIN,
 		glib::OptionArg::String,
 		"This is just a test",
@@ -1464,7 +1456,7 @@ fn main() {
 	});
 
 	// https://gtk-rs.org/docs/gio/prelude/trait.ApplicationExtManual.html#tymethod.run
-	application.run(&args().collect::<Vec<_>>());
+	application.run();
 }
 
 /*
