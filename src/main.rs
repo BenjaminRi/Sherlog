@@ -530,8 +530,7 @@ fn handle_evt_press(
 		store.thumb_drag_x = evt.position().0 - store.scroll_bar.thumb_x;
 		store.thumb_drag_y = evt.position().1 - store.scroll_bar.thumb_y;
 		store.hover_line = None;
-	} else if !(evt.position().0 < store.border_left || evt.position().1 < store.border_top)
-	{
+	} else if !(evt.position().0 < store.border_left || evt.position().1 < store.border_top) {
 		let line = ((evt.position().1 - store.border_top) / store.line_spacing) as usize;
 		if line < store.visible_lines {
 			let clicked_line = store.rel_to_abs_offset(line);
@@ -633,8 +632,7 @@ fn handle_evt_motion(
 			if evt.position().0 < store.border_left || evt.position().1 < store.border_top {
 				None
 			} else {
-				let line =
-					((evt.position().1 - store.border_top) / store.line_spacing) as usize;
+				let line = ((evt.position().1 - store.border_top) / store.line_spacing) as usize;
 				if line >= store.visible_lines {
 					None
 				} else {
@@ -768,7 +766,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 	};
 	let log_source_ex4 = model::LogSource {
-		name: "examale4".to_string(),
+		name: "example4".to_string(),
 		children: { model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) },
 	};
 
@@ -1320,8 +1318,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			{
 				store_rc_clone.borrow_mut().pressed_shift = true;
 			}
-			if event_key.keyval() == gdk::keys::constants::c
-				&& store_rc_clone.borrow().pressed_ctrl
+			if event_key.keyval() == gdk::keys::constants::c && store_rc_clone.borrow().pressed_ctrl
 			{
 				let clipboard = gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD);
 
