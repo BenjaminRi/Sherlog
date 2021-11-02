@@ -8,6 +8,15 @@
 
 -------------------------------------------------------------------------------
 
+Sherlog v0.8.3 (02.11.2021) - Commit ID: 472b22b1df6ea1bcdeb8a53e62afe246c40d7eef
+
+- Sfile parser: Recognize more boards
+
+Windows release: Sherlog-Setup-v0.8.3.exe
+SHA256: 2A51CB2AE0A00ED8CD85F48DCAB11077D5BB27322F4B5D96E025A0127EA89DC3
+
+-------------------------------------------------------------------------------
+
 Sherlog v0.8.2 (10.03.2021) - Commit ID: c9761e674d199600433bab4111e051efc01c9015
 
 - Fix xlog file name parsing. Underscores in application names are now handled properly
