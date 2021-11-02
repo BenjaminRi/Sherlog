@@ -231,14 +231,16 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let mut iter = source.name.splitn(2, '_');
 		let board_name = iter.next().unwrap(); //First element always exists
 		if let Some(log_name) = iter.next() {
-			if board_name == "adm" || //G
-				board_name == "axis" ||
-				board_name == "laseroven" || //G
+			if board_name == "axis" ||
 				board_name == "sensorbase" ||
 				board_name == "telescope" ||
 				board_name == "trigger" ||
-				board_name == "wfd"
-			//W
+				board_name == "adm" || //G
+				board_name == "laseroven" || //G
+				board_name == "wfd"	|| //W
+				board_name.starts_with("dynamic") || //P
+				board_name == "icbpower" || //P
+				false
 			{
 				if sensor_child_sources.is_empty()
 					|| sensor_child_sources.last().unwrap().name != board_name
