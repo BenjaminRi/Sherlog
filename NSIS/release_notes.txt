@@ -8,6 +8,18 @@
 
 -------------------------------------------------------------------------------
 
+Sherlog v0.9.0 (21.02.2022) - Commit ID: 79e05637a91eb768333983c82ed034f3fc3c7284
+
+- Fix crash that occurred when trying to display log messages containing NUL bytes
+- Add Probe and Connect Box EtherCAT time correction
+- Improve log parsing of RDS logs, in particular Jobs and ScanningStatistics
+- Technical: Update Rust crate dependencies, including GTK
+
+Windows release: Sherlog-Setup-v0.9.0.exe
+SHA256: E0B0EF757895E5D6A90B9F32C2DFE7B5A08784FB580A10EA7AD93341F5B3E22B
+
+-------------------------------------------------------------------------------
+
 Sherlog v0.8.3 (02.11.2021) - Commit ID: 472b22b1df6ea1bcdeb8a53e62afe246c40d7eef
 
 - Sfile parser: Recognize more boards
