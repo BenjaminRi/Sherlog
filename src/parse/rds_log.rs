@@ -349,16 +349,17 @@ enum RdsLogSeverity {
 }
 
 impl RdsLogSeverity {
-	//Lowercase in files: [rds.log, RDSLocalDBDLL.log, Romer.RDS.APINet.log]
-	//Uppercase in files: [RDSAgent.log, RDSToolBox.log]
+	// Lowercase in files: [Hexagon.Rds.Jobs.log, Hexagon.Rds.Jobs.2.log, Hexagon.Rds.Service.ScanningStatistics.log]
+	// Capitalized files: [rds.log, RDSLocalDBDLL.log, Romer.RDS.APINet.log]
+	// Uppercase in files: [RDSAgent.log, RDSToolBox.log]
 	fn from_str(value: &str) -> Option<RdsLogSeverity> {
 		match value {
-			"Fatal" | "FATAL" => Some(RdsLogSeverity::Fatal),
-			"Error" | "ERROR" => Some(RdsLogSeverity::Error),
-			"Warn" | "WARN" => Some(RdsLogSeverity::Warning),
-			"Info" | "INFO" => Some(RdsLogSeverity::Info),
-			"Debug" | "DEBUG" => Some(RdsLogSeverity::Debug),
-			"Trace" | "TRACE" => Some(RdsLogSeverity::Trace),
+			"critical" | "Fatal" | "FATAL" => Some(RdsLogSeverity::Fatal), // Note the lowercase "critical", not "fatal" here!
+			"error" | "Error" | "ERROR" => Some(RdsLogSeverity::Error),
+			"warn" | "Warn" | "WARN" => Some(RdsLogSeverity::Warning),
+			"info" | "Info" | "INFO" => Some(RdsLogSeverity::Info),
+			"debug" | "Debug" | "DEBUG" => Some(RdsLogSeverity::Debug),
+			"trace" | "Trace" | "TRACE" => Some(RdsLogSeverity::Trace),
 			_ => None,
 		}
 	}
