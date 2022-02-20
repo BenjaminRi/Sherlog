@@ -1,6 +1,6 @@
 [package]
 name = "sherlog"
-version = "0.8.3"
+version = "0.9.0"
 authors = ["Benjamin Richner"]
 edition = "2018"
 license = "GPL-3.0-only"
