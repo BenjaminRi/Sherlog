@@ -43,6 +43,16 @@ pub struct LogSourceExt {
 	pub children: LogSourceContentsExt,
 }
 
+// Delete NUL bytes from string - GTK has trouble with them
+fn remove_nul_bytes(string: String) -> String {
+	if string.contains('\0') {
+		string.replace('\0', "")
+	}
+	else {
+		string
+	}
+}
+
 impl LogSourceExt {
 	pub fn from_source(log_source: model::LogSource) -> LogSourceExt {
 		let children = match log_source.children {
@@ -59,7 +69,7 @@ impl LogSourceExt {
 					.map(move |entry| LogEntryExt {
 						timestamp: entry.timestamp,
 						severity: entry.severity,
-						message: entry.message,
+						message: remove_nul_bytes(entry.message),
 						source_id: 0,
 						visible: VISIBLE_ON,
 						entry_id: 0,
@@ -70,7 +80,7 @@ impl LogSourceExt {
 			),
 		};
 		let mut source_ext = LogSourceExt {
-			name: log_source.name,
+			name: remove_nul_bytes(log_source.name),
 			id: 0,
 			child_cnt: 0,
 			children,
