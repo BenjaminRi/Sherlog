@@ -954,8 +954,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 		{
 			sources_tree_view.append_column(&column);
-			sources_tree_view
-				.set_property("activate-on-single-click", &true);
+			sources_tree_view.set_property("activate-on-single-click", &true);
 			//connect_row_activated<F: Fn(&Self, &TreePath, &TreeViewColumn)
 			//sources_tree_view.connect_row_activated(|tree_view, path, column| { println!("row-activated\n{:?}\n{:?}\n{:?}", tree_view, path.get_indices(), column) } ); //TODO: Hook up row-activated event
 			//https://gtk-rs.org/docs/gtk/trait.TreeViewExt.html
@@ -1023,9 +1022,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	let split_pane = gtk::Paned::new(Orientation::Horizontal);
 
-	let scrolled_window_left = gtk::ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
-	scrolled_window_left
-		.set_property("overlay-scrolling", &false);
+	let scrolled_window_left =
+		gtk::ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
+	scrolled_window_left.set_property("overlay-scrolling", &false);
 	scrolled_window_left.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
 	//scrolled_window_left.set_property("min-content-width", &200);
 	scrolled_window_left.add(&sources_tree_view);

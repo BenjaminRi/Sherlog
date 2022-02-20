@@ -299,6 +299,12 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	for mut source in &mut sensor_child_sources {
 		adjust_sensor_timestamps(&mut source);
 	}
+	for mut source in &mut cbox_child_sources {
+		adjust_sensor_timestamps(&mut source);
+	}
+	for mut source in &mut probe_child_sources {
+		adjust_sensor_timestamps(&mut source);
+	}
 
 	let contr_logs = model::LogSource {
 		name: "Controller".to_string(),

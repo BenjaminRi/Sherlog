@@ -47,8 +47,7 @@ pub struct LogSourceExt {
 fn remove_nul_bytes(string: String) -> String {
 	if string.contains('\0') {
 		string.replace('\0', "")
-	}
-	else {
+	} else {
 		string
 	}
 }
