@@ -91,7 +91,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							if let std::borrow::Cow::Owned(owned_str) = &buf_str {
 								println!("MALFORMED UTF-8 in error code / severity: {}", owned_str);
 								parser_state = RdsLogParserState::ExpectSeverity;
-							} else if let Ok(_error_code) = buf_str.parse::<u32>() {
+							} else if let Ok(_error_code) = buf_str.trim_start().parse::<u32>() {
 								//Successfully read error code; discard it for now
 								parser_state = RdsLogParserState::ExpectSeverity;
 							} else if let Some(rds_log_sev) = RdsLogSeverity::from_str(&buf_str) {
