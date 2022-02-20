@@ -63,7 +63,15 @@ Build the project by `cd`ing to the project folder and running `cargo build`.
 
 ### Linux
 
-On Linux, the build should work more or less out of the box after you installed the [Rust compiler](https://www.rust-lang.org/tools/install).
+On Linux, install the [Rust compiler](https://www.rust-lang.org/tools/install).
+
+Then you need to get the GTK development libraries and header files. On Debian/Ubuntu, this is done via APT:
+
+```sh
+sudo apt install libglib2.0-dev libcairo2-dev libpango1.0-dev libatk1.0-dev libgtk-3-dev
+```
+
+Build the project by `cd`ing to the project folder and running `cargo build`.
 
 ### Cross-compilation
 
