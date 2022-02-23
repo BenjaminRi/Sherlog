@@ -77,9 +77,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		} else if let Some(extension) = outpath.extension() {
 			match extension.to_string_lossy().as_ref() {
 				"glog" => {
-					let mut s = stem.to_string();
-					strip_suffix(&mut s);
-					glog_files.push(ZipEntry { name: s, index: i });
+					glog_files.push(ZipEntry {
+						name: stem.to_string(),
+						group_name: get_group_name(&stem),
+						index: i,
+					});
 				}
 				"xlog" => {
 					//println!("XLOG: {}", &stem);
@@ -178,25 +180,56 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		client_child_sources.push(sub_source);
 	}
 
-	//Merge numbered files together (e.g. contr_ProcessManager and contr_ProcessManager_1)
-	//Note: The number was already stripped with strip_suffix.
-	glog_files.sort_unstable();
+	//Sort glog files by group (a group is the file name with its ring buffer ID / overview suffix removed)
+	//Inside a group, reverse sort by file name (and thus buffer ID) to get chronological ordering of files.
+	//The reason for this is that higher ring buffer ID means the file is older. Older log entries come first.
+	//Note: Overview logs are interspersed with normal logs, therefore no chronological order between
+	//the log entries of normal logs and overview logs can be established without inspecting timestamps.
+	//Note: Sensor has logSync and logAsync, leading to minor violations of chronological order inside a file
+	//and even e.g. between the end of one file and the start of another.
+	//Due to these facts, this ordering is only mostly chronological with regards to individual log entries.
+	//This chronological ordering is required to perform timestamp corrections for devices that do not have
+	//a real-time clock and thus start with 1970 timestamps on boot-up before distributed clock time is set.
+	//It is also required to preserve the order of log entries that were logged with the exact same timestamp.
+	//
+	//Example ordering:
+	//Group name           File name
+	//--------------------------------------
+	//adm_LoggerAdm_p      adm_LoggerAdm_2_p
+	//adm_LoggerAdm_p      adm_LoggerAdm_1_p
+	//adm_LoggerAdm_v      adm_LoggerAdm_1_v
+	//contr_FtcManager     contr_FtcManager_ov
+	//contr_FtcManager     contr_FtcManager
+	//contr_Hwa            contr_Hwa_4
+	//contr_Hwa            contr_Hwa_3
+	//contr_Hwa            contr_Hwa_2
+	//contr_Hwa            contr_Hwa_1
+	//contr_Hwa            contr_Hwa
+	//
+	//Note the sorting subtleties, especially with _p and _v logs, where the ID is not a suffix.
+
+	glog_files.sort_unstable_by(|a, b| {
+		a.group_name
+			.cmp(&b.group_name)
+			.then(a.name.cmp(&b.name).reverse())
+	});
+
 	let mut deque = std::collections::VecDeque::new();
-	let mut last_name = "".to_string();
+	let mut last_group = "".to_string();
 	for file in glog_files {
-		if last_name != file.name {
+		if last_group != file.group_name {
 			if !deque.is_empty() {
 				let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
 				let reader = ConcatZipReader::new(&mut archive, deque);
 				let root = model::LogSource {
-					name: last_name,
+					name: last_group,
 					children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 				};
 				child_sources.push(glog::to_log_entries(reader, root));
 			}
 			println!("--------------------");
 			println!("Glog file: {:?}", file);
-			last_name = file.name;
+			last_group = file.group_name;
 		} else {
 			println!("Glog file: {:?}", file);
 		}
@@ -206,7 +239,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let deque = mem::replace(&mut deque, std::collections::VecDeque::new());
 		let reader = ConcatZipReader::new(&mut archive, deque);
 		let root = model::LogSource {
-			name: last_name,
+			name: last_group,
 			children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
 		};
 		child_sources.push(glog::to_log_entries(reader, root));
@@ -548,13 +581,15 @@ impl<'a, R: std::io::Read + std::io::Seek> std::io::Read for ConcatZipReader<'a,
 	}
 }
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Debug)]
 struct ZipEntry {
 	name: String,
+	group_name: String,
 	index: usize,
 }
 
-fn strip_suffix(s: &mut String) {
+fn get_group_name(s: &str) -> String {
+	let mut s = s.to_string();
 	let storage_type = if s.ends_with("_v") {
 		//Virtual (in RAM)
 		"_v"
@@ -582,4 +617,5 @@ fn strip_suffix(s: &mut String) {
 
 	//Restore storage type suffix
 	s.push_str(storage_type);
+	s
 }
