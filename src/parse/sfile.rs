@@ -401,119 +401,124 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 }
 
 fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
-	let mut session_map = HashMap::<u32, i64>::new(); //maps session to EtherCAT offset
-	fn generate_session_table(source: &model::LogSource, mut map: &mut HashMap<u32, i64>) {
-		match &source.children {
-			model::LogSourceContents::Sources(v) => {
-				for source in v {
-					generate_session_table(&source, &mut map);
-				}
+	match &mut source.children {
+		model::LogSourceContents::Sources(v) => {
+			for mut source in v {
+				adjust_sensor_timestamps(&mut source);
 			}
-			model::LogSourceContents::Entries(v) => {
-				for entry in v {
-					if let Some(field) = entry.custom_fields.get("SessionId") {
-						if let model::CustomField::UInt32(session_id) = field {
-							//Some log entries say:
-							//Setting EtherCAT time [delta = 1562060032100954112 ns].
-							//Others say (omitting the dot):
-							//Setting EtherCAT time [delta = 1562060032100954112 ns]
-							//We need to handle both...
-							if entry.message.starts_with("Setting EtherCAT time [delta = ")
-								&& (entry.message.ends_with(" ns].")
-									|| entry.message.ends_with(" ns]"))
-							{
-								let delta = entry.message.split(' ').nth(5).unwrap(); //we can unwrap here because we verified the format above
-								if let Ok(delta) = delta.parse::<i64>() {
-									let delta_old = map.insert(*session_id, delta);
-									if let Some(delta_old) = delta_old {
-										if delta_old == delta {
-											// Message is duplicated over all FUs. This is a normal occurrence.
-											//println!("WARNING: Overwriting EtherCAT Time with same content! Session ID: {}, Delta: {}", session_id, delta);
+		}
+		model::LogSourceContents::Entries(v) => {
+			println!("Adjust sensor timestamps: {:?}", source.name);
+
+			#[derive(Debug, PartialEq)]
+			struct Correction {
+				session_id: u32,
+				delta: i64,
+			}
+			let mut active_correction: Option<Correction> = None;
+			// Reverse iterate, from the newest to the oldest entry
+			for entry in v.iter_mut().rev() {
+				if let Some(field) = entry.custom_fields.get("SessionId") {
+					if let model::CustomField::UInt32(session_id) = field {
+						// Some log entries say:
+						// Setting EtherCAT time [delta = 1562060032100954112 ns].
+						// Others say (omitting the dot):
+						// Setting EtherCAT time [delta = 1562060032100954112 ns]
+						// We need to handle both...
+						if entry.message.starts_with("Setting EtherCAT time [delta = ")
+							&& (entry.message.ends_with(" ns].") || entry.message.ends_with(" ns]"))
+						{
+							let delta = entry.message.split(' ').nth(5).unwrap(); //we can unwrap here because we verified the format above
+							if let Ok(delta) = delta.parse::<i64>() {
+								let old_correction = mem::replace(
+									&mut active_correction,
+									Some(Correction {
+										session_id: *session_id,
+										delta,
+									}),
+								);
+
+								let old_session_id_opt =
+									if let Some(old_correction) = &old_correction {
+										Some(old_correction.session_id)
+									} else {
+										None
+									};
+
+								if old_correction == active_correction {
+									println!("WARNING: Overwriting EtherCAT Time with same content! {:?}", active_correction);
+								} else if old_session_id_opt == Some(*session_id) {
+									println!(
+										"WARNING: Overwriting EtherCAT Time! Old: {:?}, New: {:?}",
+										old_correction, active_correction
+									);
+								} else {
+									// This is the happy path for reading timestamp corrections.
+									// Happens when:
+									// - The very first correction is read
+									// - A valid correction is read after the last one was invalidated by e.g. a session change
+									// - A valid correction replaces a previous valid correction due to session change
+									//println!(
+									//	"Read fresh timestamp correction: {:?}",
+									//	active_correction
+									//);
+								}
+							} else {
+								println!("WARNING: could not parse EtherCAT timestamp {}", delta);
+								active_correction = None;
+							}
+						} else {
+							if let Some(correction) = &active_correction {
+								if *session_id == correction.session_id {
+									// Timestamps before 01-01-72 00:00:00.000000 are not realistic because the device did not exist back then.
+									// We can safely assume that these are relative timestamps that are not yet corrected with EtherCAT time.
+									// It is also reasonable to assume that a device receives its EtherCAT time within 2 years (or never).
+									if entry.timestamp
+										< DateTime::<Utc>::from_utc(
+											NaiveDateTime::from_timestamp(63_072_000, 0),
+											Utc,
+										) {
+										//Divide delta by 100 to convert from 1ns to 100ns ticks, which is the default GCOM timespan measurement
+										if let Some(corrected_timestamp) =
+											datetime_utils::add_offset_100ns(
+												entry.timestamp,
+												correction.delta / 100,
+											) {
+											entry.timestamp = corrected_timestamp;
 										} else {
-											println!("WARNING: Overwriting EtherCAT Time! Session ID: {}, Old: {}, New: {}", session_id, delta_old, delta);
+											println!(
+												"WARNING: could not correct timestamp with offset: {}",
+												correction.delta
+											);
 										}
 									}
 								} else {
-									println!(
-										"WARNING: could not parse EtherCAT timestamp {}",
-										delta
-									);
+									// We moved on to a different session. Scrap active timestamp correction.
+									active_correction = None;
 								}
 							} else {
-								//Do nothing. It's a regular message that does not set EtherCAT time.
+								// This either happens if we encounter an already corrected timestamp and haven't yet
+								// encountered the log entry that specifies the time delta.
+								// Or else, it happens if the bus never connected, so the device never got the EtherCAT offset.
+								// This second case is also a normal thing to occur over the lifetime of a device,
+								// but we have to think about how to sort these log lines as their timestamp remains around 1970.
+								//println!("WARNING: Could not find EtherCAT offset for {}!", entry.message);
 							}
-						} else {
-							panic!("Wrong type for session ID!");
 						}
 					} else {
-						// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID (???)
-						println!(
-							"WARNING: No session ID found for sensor log entry: {}",
-							entry.message
-						);
+						panic!("Wrong type for session ID!");
 					}
+				} else {
+					// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID, these logs are special
+					println!(
+						"WARNING: No session ID found for sensor log entry: {}",
+						entry.message
+					);
+					active_correction = None;
 				}
 			}
 		}
 	}
-	generate_session_table(&source, &mut session_map);
-
-	fn adjust_source_timestamp(source: &mut model::LogSource, map: &HashMap<u32, i64>) {
-		match &mut source.children {
-			model::LogSourceContents::Sources(v) => {
-				for mut source in v {
-					adjust_source_timestamp(&mut source, &map);
-				}
-			}
-			model::LogSourceContents::Entries(v) => {
-				for mut entry in v {
-					// Timestamps before 01-01-72 00:00:00.000000 are not realistic because the device did not exist back then.
-					// We can safely assume that these are relative timestamps that are not yet corrected with EtherCAT time.
-					// It is also reasonable to assume that a device receives its EtherCAT time within 2 years (or never).
-					if entry.timestamp
-						< DateTime::<Utc>::from_utc(
-							NaiveDateTime::from_timestamp(63_072_000, 0),
-							Utc,
-						) {
-						if let Some(field) = entry.custom_fields.get("SessionId") {
-							if let model::CustomField::UInt32(session_id) = field {
-								if let Some(delta) = map.get(&session_id) {
-									//Divide delta by 100 to convert from 1ns to 100ns ticks, which is the default GCOM timespan measurement
-									if let Some(corrected_timestamp) =
-										datetime_utils::add_offset_100ns(
-											entry.timestamp,
-											*delta / 100,
-										) {
-										entry.timestamp = corrected_timestamp;
-									} else {
-										println!(
-											"WARNING: could not correct timestamp with offset: {}",
-											delta
-										);
-									}
-								} else {
-									// This happens if the bus never connected, so the device never got the EtherCAT offset.
-									// In this sense, it is a normal thing to occur over the lifetime of a device,
-									// but we have to think about how to sort these log lines as their timestamp is incorrect.
-									//println!("WARNING: Could not find EtherCAT offset for {}!", entry.message);
-								}
-							} else {
-								panic!("Wrong type for session ID!");
-							}
-						} else {
-							// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID (???)
-							println!(
-								"WARNING: No session ID found for sensor log entry: {}",
-								entry.message
-							);
-						}
-					}
-				}
-			}
-		}
-	}
-	adjust_source_timestamp(&mut source, &session_map);
-	//println!("TABLE: {:?}", session_map);
 }
 
 struct ConcatZipReader<'a, R: std::io::Read + std::io::Seek> {
