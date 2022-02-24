@@ -626,7 +626,7 @@ checksum = "ce31e24b01e1e524df96f1c2fdd054405f8d7376249a5110886fb4b658484789"
 
 [[package]]
 name = "sherlog"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "cairo-rs",
  "chrono",
