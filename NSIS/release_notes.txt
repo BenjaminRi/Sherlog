@@ -6,6 +6,17 @@
 | Pull requests are welcome               |
 +-----------------------------------------+
 
+
+-------------------------------------------------------------------------------
+
+Sherlog v0.9.1 (24.02.2022) - Commit ID: 6692702ac66b984533766e7bdeb3edb7df229e2c
+
+- Make EtherCAT time correction more robust
+- Fix EtherCAT time correction bugs when duplicate session IDs are present
+
+Windows release: Sherlog-Setup-v0.9.1.exe
+SHA256: 154BE45C3A6B05D92C5B6B9555887A74CD3FB8D3EA9666EC523BB2FF26F2BED6
+
 -------------------------------------------------------------------------------
 
 Sherlog v0.9.0 (21.02.2022) - Commit ID: 79e05637a91eb768333983c82ed034f3fc3c7284
