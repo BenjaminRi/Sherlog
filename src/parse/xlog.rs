@@ -28,11 +28,11 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 								log_entry.timestamp = datetime;
 							} else {
 								//TODO: Notify of invalid datetime?
-								println!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
+								log::warn!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
 							}
 						} else {
 							//TODO: Notify of invalid time?
-							println!("MALFORMED Log 100ns value: {}", unit_value);
+							log::warn!("MALFORMED Log 100ns value: {}", unit_value);
 						}
 					}
 					"<L>" => {
@@ -40,7 +40,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							log_entry.severity = normalize_xlog_sev(xlog_sev);
 						} else {
 							//TODO: Notify of invalid severity?
-							println!("INVALID Log severity: {}", unit_value);
+							log::warn!("INVALID Log severity: {}", unit_value);
 						}
 					}
 					"<M>" => {
@@ -48,13 +48,13 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 					}
 					_ => {
 						//TODO: Notify of invalid kind?
-						//println!("UNRECOGNIZED kind: {}", &unit_header);
+						//log::warn!("UNRECOGNIZED kind: {}", &unit_header);
 					}
 				}
 
-			//println!("Header: [{}] Value: [{}]", unit_header, unit_value);
+			//log::info!("Header: [{}] Value: [{}]", unit_header, unit_value);
 			} else {
-				println!("ERROR: NO DELMIMTER FOUND IN {}", unit);
+				log::warn!("ERROR: NO DELMIMTER FOUND IN {}", unit);
 			}
 		}
 

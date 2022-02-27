@@ -17,7 +17,7 @@ pub fn to_log_entries(reader: impl std::io::Read, root: model::LogSource) -> mod
 	loop {
 		if let Ok(bytes_read) = bufreader.read(&mut buffer) {
 			if bytes_read == 0 {
-				//println!("Len srcs {}, entrs {}", parser.log_sources.len(), parser.log_entries.len());
+				//log::info!("Len srcs {}, entrs {}", parser.log_sources.len(), parser.log_entries.len());
 				break parser.finalize();
 			} else {
 				parser.read_byte(buffer[0]);
@@ -82,13 +82,13 @@ impl GlogParser {
 							"t" => GlogSectionKind::Timestamp100ns, //sensor only
 							_ => {
 								//TODO: Notify of invalid kind?
-								println!("UNRECOGNIZED kind: {}", &kind_str);
+								log::warn!("UNRECOGNIZED kind: {}", &kind_str);
 								GlogSectionKind::Unknown
 							}
 						}
 					} else {
 						//TODO: Notify of malformed UTF-8?
-						println!(
+						log::warn!(
 							"MALFORMED UTF-8 in kind string: {}",
 							&String::from_utf8_lossy(&self.buf)
 						);
@@ -147,11 +147,11 @@ impl GlogParser {
 									self.log_entry.timestamp = datetime;
 								} else {
 									//TODO: Notify of invalid datetime?
-									println!("MALFORMED Log ms timestamp: {}", ts_milli);
+									log::warn!("MALFORMED Log ms timestamp: {}", ts_milli);
 								}
 							} else {
 								//TODO: Notify of invalid timestamp?
-								println!("MALFORMED Log ms timestamp value: {}", value_str);
+								log::warn!("MALFORMED Log ms timestamp value: {}", value_str);
 							}
 						}
 						GlogSectionKind::Severity => {
@@ -160,11 +160,11 @@ impl GlogParser {
 									self.log_entry.severity = normalize_glog_sev(glog_sev);
 								} else {
 									//TODO: Notify of invalid severity?
-									println!("INVALID Log severity: {}", value_str);
+									log::warn!("INVALID Log severity: {}", value_str);
 								}
 							} else {
 								//TODO: Notify of malformed severity?
-								println!("MALFORMED Log severity: {}", value_str);
+								log::warn!("MALFORMED Log severity: {}", value_str);
 							}
 						}
 						GlogSectionKind::LogSource => {
@@ -176,12 +176,12 @@ impl GlogParser {
 							//);
 							} else {
 								//TODO: Notify of malformed sub-source?
-								println!("MALFORMED Log sub-source: {}", value_str);
+								log::warn!("MALFORMED Log sub-source: {}", value_str);
 							}
 						}
 						GlogSectionKind::Message => {
 							if let std::borrow::Cow::Owned(owned_str) = &value_str {
-								println!("MALFORMED UTF-8 in Message: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in Message: {}", owned_str);
 							}
 							self.log_entry.message = value_str.to_string();
 						}
@@ -191,11 +191,11 @@ impl GlogParser {
 									self.log_entry.timestamp = datetime;
 								} else {
 									//TODO: Notify of invalid datetime?
-									println!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
+									log::warn!("MALFORMED Log 100ns datetime: {}", gcom_datetime);
 								}
 							} else {
 								//TODO: Notify of invalid 100ns value?
-								println!("MALFORMED Log 100ns value: {}", value_str);
+								log::warn!("MALFORMED Log 100ns value: {}", value_str);
 							}
 						}
 						GlogSectionKind::ErrorCode => {
@@ -211,7 +211,7 @@ impl GlogParser {
 								);
 							} else {
 								//TODO: Notify of malformed session id?
-								println!("MALFORMED Session ID: {}", value_str);
+								log::warn!("MALFORMED Session ID: {}", value_str);
 							}
 						}
 						GlogSectionKind::Unknown => (),
@@ -286,7 +286,7 @@ impl GlogParser {
 	fn finalize(mut self) -> model::LogSource {
 		if self.invalid_bytes > 0 {
 			//TODO: Invalid bytes?
-			println!("INVALID bytes encountered, count: {}", self.invalid_bytes);
+			log::warn!("INVALID bytes encountered, count: {}", self.invalid_bytes);
 		}
 		match self.state {
 			GlogParserState::PreSection => {
@@ -294,11 +294,11 @@ impl GlogParser {
 			}
 			GlogParserState::SectionKind => {
 				//TODO: Notify of cut off kind?
-				println!("CUT OFF last log message (kind)");
+				log::warn!("CUT OFF last log message (kind)");
 			}
 			GlogParserState::SectionValue(_) => {
 				//TODO: Notify of cut off kind?
-				println!("CUT OFF last log message (value)");
+				log::warn!("CUT OFF last log message (value)");
 			}
 			GlogParserState::SectionValuePost1(_) => {
 				//Finish parsing section

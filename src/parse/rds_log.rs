@@ -58,13 +58,13 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							buf.pop();
 							let buf_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &buf_str {
-								println!("MALFORMED UTF-8 in datetime: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in datetime: {}", owned_str);
 							} else {
 								if let Some(timestamp) = parse_rds_datetime(&buf_str) {
 									log_entry.timestamp = timestamp;
 								} else {
 									//TODO: Notify of invalid datetime?
-									println!("MALFORMED Log datetime: {}", buf_str);
+									log::warn!("MALFORMED Log datetime: {}", buf_str);
 								}
 							}
 							buf.clear();
@@ -89,7 +89,10 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							buf.pop();
 							let buf_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &buf_str {
-								println!("MALFORMED UTF-8 in error code / severity: {}", owned_str);
+								log::warn!(
+									"MALFORMED UTF-8 in error code / severity: {}",
+									owned_str
+								);
 								parser_state = RdsLogParserState::ExpectSeverity;
 							} else if let Ok(_error_code) = buf_str.trim_start().parse::<u32>() {
 								//Successfully read error code; discard it for now
@@ -99,7 +102,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 								parser_state = RdsLogParserState::ExpectLogSource;
 							} else {
 								//TODO: Notify of invalid error code / severity?
-								println!("MALFORMED error code / severity: {}", buf_str);
+								log::warn!("MALFORMED error code / severity: {}", buf_str);
 								parser_state = RdsLogParserState::ExpectSeverity;
 							}
 							buf.clear();
@@ -123,13 +126,13 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							buf.pop();
 							let buf_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &buf_str {
-								println!("MALFORMED UTF-8 in severity: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in severity: {}", owned_str);
 							} else {
 								if let Some(rds_log_sev) = RdsLogSeverity::from_str(&buf_str) {
 									log_entry.severity = normalize_rds_log_sev(rds_log_sev);
 								} else {
 									//TODO: Notify of invalid severity?
-									println!("MALFORMED Log severity: {}", buf_str);
+									log::warn!("MALFORMED Log severity: {}", buf_str);
 								}
 							}
 							buf.clear();
@@ -154,7 +157,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							buf.pop();
 							let buf_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &buf_str {
-								println!("MALFORMED UTF-8 in log source: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in log source: {}", owned_str);
 							} else {
 								//Successfully read log source; discard it for now
 							}
@@ -182,7 +185,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							//Log file ended before delimiter was found.
 							let message_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &message_str {
-								println!("MALFORMED UTF-8 in Message: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in Message: {}", owned_str);
 							}
 							log_entry.message = message_str.to_string();
 							let finalized_log_entry = std::mem::replace(
@@ -242,7 +245,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 									//Emit message
 									let message_str = String::from_utf8_lossy(&buf[..prev_size]);
 									if let std::borrow::Cow::Owned(owned_str) = &message_str {
-										println!("MALFORMED UTF-8 in Message: {}", owned_str);
+										log::warn!("MALFORMED UTF-8 in Message: {}", owned_str);
 									}
 									log_entry.message = message_str.to_string();
 									let finalized_log_entry = std::mem::replace(
@@ -263,7 +266,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 								}
 							} else {
 								//TODO: Notify of malformed UTF-8?
-								println!(
+								log::warn!(
 									"MALFORMED UTF-8 in datetime string: {}",
 									&String::from_utf8_lossy(&buf)
 								);
@@ -274,7 +277,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 							//Log file ended before delimiter was found.
 							let message_str = String::from_utf8_lossy(&buf);
 							if let std::borrow::Cow::Owned(owned_str) = &message_str {
-								println!("MALFORMED UTF-8 in Message: {}", owned_str);
+								log::warn!("MALFORMED UTF-8 in Message: {}", owned_str);
 							}
 							log_entry.message = message_str.to_string();
 							let finalized_log_entry = std::mem::replace(
@@ -290,7 +293,7 @@ pub fn to_log_entries(reader: impl std::io::Read, mut root: model::LogSource) ->
 						//End of log file.
 						let message_str = String::from_utf8_lossy(&buf);
 						if let std::borrow::Cow::Owned(owned_str) = &message_str {
-							println!("MALFORMED UTF-8 in Message: {}", owned_str);
+							log::warn!("MALFORMED UTF-8 in Message: {}", owned_str);
 						}
 						log_entry.message = message_str.to_string();
 						let finalized_log_entry = std::mem::replace(

@@ -57,7 +57,7 @@ fn toggle_row(
 	drawing_area: &gtk::DrawingArea,
 	path: gtk::TreePath,
 ) {
-	//println!("Path: {:?}", path.get_indices());
+	//log::info!("Path: {:?}", path.get_indices());
 
 	let iter = tree_store.iter(&path).unwrap();
 	let mut active = tree_store
@@ -142,7 +142,7 @@ fn toggle_row(
 					.unwrap()
 					.unwrap();
 
-				println!("{}", n_text);*/
+				log::info!("{}", n_text);*/
 				let n_active = tree_store
 					.value(&iter, LogSourcesColumns::Active as i32)
 					.get::<bool>()
@@ -158,7 +158,7 @@ fn toggle_row(
 					.value(&iter, LogSourcesColumns::Id as i32)
 					.get::<u32>()
 					.unwrap();
-				//println!("activate_children... {}", n_id);
+				//log::info!("activate_children... {}", n_id);
 				sources.push(n_id); //Don't just push diffs. Push continuous ranges to enable optimization below.
 				tree_store.set_value(
 					&iter,
@@ -183,12 +183,12 @@ fn toggle_row(
 	let now = Instant::now();
 	activate_children(tree_store, &iter, active, &mut sources);
 	let elapsed = now.elapsed();
-	println!(
+	log::info!(
 		"Time to activate children: {}ms",
 		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 	);
 
-	//println!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
+	//log::info!("Click: {:?} change to {}", sources, active); //Note: Very verbose output.
 
 	let mut ordered = true;
 	let mut next_id = *sources.first().unwrap(); //We can do this because we know we pushed at least one id above.
@@ -202,15 +202,15 @@ fn toggle_row(
 	}
 
 	if !ordered {
-		println!("ERROR: Unordered log source tree detected!");
+		log::error!("Unordered log source tree detected!");
 		panic!(); //If this happens you broke the tree structure
 	}
 
 	let first_id = *sources.first().unwrap(); //We can do this because we know we pushed at least one id above.
 	let last_id = *sources.last().unwrap(); //We can do this because we know we pushed at least one id above.
 
-	//println!("Click: Range [{},{}] set to {}", first_id, last_id, active);
-	//println!("Inconsistent: {}", level_inconsistent);
+	//log::info!("Click: Range [{},{}] set to {}", first_id, last_id, active);
+	//log::info!("Inconsistent: {}", level_inconsistent);
 
 	/*
 	let re = Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap();
@@ -226,7 +226,7 @@ fn toggle_row(
 		crate::model_internal::VISIBLE_OFF_SOURCE,
 	);
 	let elapsed = now.elapsed();
-	println!(
+	log::info!(
 		"Time to update store: {}ms",
 		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 	);
@@ -245,9 +245,9 @@ fn draw(
 	ctx: &cairo::Context,
 ) -> gtk::Inhibit {
 	//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
-	//println!("{}", store.store.len());
+	//log::info!("{}", store.store.len());
 
-	//println!("w: {} h: {}", drawing_area.allocated_width(), drawing_area.allocated_height());
+	//log::info!("w: {} h: {}", drawing_area.allocated_width(), drawing_area.allocated_height());
 
 	ctx.set_source_rgb(1.0, 1.0, 1.0);
 	ctx.paint();
@@ -481,7 +481,7 @@ fn handle_evt(
 				model::LogLevel::Trace => { a += 2.158; },
 			}
 		}*/
-		println!("Event: {:?}", evt.event_type());
+		log::trace!("Event: {:?}", evt.event_type());
 	}
 	gtk::Inhibit(false)
 }
@@ -507,7 +507,7 @@ fn handle_evt_scroll(
 		drawing_area.queue_draw();
 	}
 
-	println!("Scroll... dirty: {}, pos: {}", dirty, store.viewport_offset);
+	log::trace!("Scroll... dirty: {}, pos: {}", dirty, store.viewport_offset);
 
 	gtk::Inhibit(false)
 }
@@ -517,8 +517,8 @@ fn handle_evt_press(
 	drawing_area: &DrawingArea,
 	evt: &gdk::EventButton,
 ) -> gtk::Inhibit {
-	//println!("PRESS pos:  {:?}", evt.position());
-	//println!("PRESS root: {:?}", evt.get_root());
+	//log::info!("PRESS pos:  {:?}", evt.position());
+	//log::info!("PRESS root: {:?}", evt.get_root());
 
 	store.mouse_down = true;
 	if evt.position().0 >= store.scroll_bar.thumb_x
@@ -581,7 +581,7 @@ fn handle_evt_press(
 
 			if clicked_line != store.anchor_offset {
 				store.anchor_offset = clicked_line;
-				println!("SET NEW anchor: {:?}", store.anchor_offset);
+				log::info!("SET NEW anchor: {:?}", store.anchor_offset);
 				drawing_area.queue_draw();
 			}
 		}
@@ -595,7 +595,7 @@ fn handle_evt_release(
 	_drawing_area: &DrawingArea,
 	_evt: &gdk::EventButton,
 ) -> gtk::Inhibit {
-	//println!("RELEASE");
+	//log::info!("RELEASE");
 	store.mouse_down = false;
 	store.thumb_drag = false;
 	store.thumb_drag_x = 0.0;
@@ -625,7 +625,7 @@ fn handle_evt_motion(
 		store.viewport_offset = store
 			.percentage_to_offset(store.scroll_bar.scroll_perc, store.visible_lines)
 			.unwrap_or(0);
-		println!("MOTION {:?}", evt.position());
+		log::trace!("MOTION {:?}", evt.position());
 		drawing_area.queue_draw();
 	} else {
 		let current_hover = {
@@ -673,7 +673,7 @@ fn handle_evt_motion(
 				//TODO: This is not perfect... Needs hover to update, even if log store becomes empty:
 				timediff_entry.set_text("+0D 00:00:00.000");
 			}
-			//println!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
+			//log::info!("Hover change: {:?}, {:?}", current_hover, store.hover_line);
 			store.hover_line = current_hover;
 			drawing_area.queue_draw();
 		}
@@ -703,7 +703,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			_ => (),
 		}
 	}*/
-	//println!("{:?}", args);
+	//log::info!("{:?}", args);
 
 	//Generate fake log entries to test GUI ---------------------------------------------
 
@@ -786,16 +786,16 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	let mut dialog_vec: Vec<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
 
-	println!("{:?}", file_paths);
+	log::info!("{:?}", file_paths);
 	let log_source_root = if !file_paths.is_empty() {
 		if file_paths.len() > 1 {
-			println!("WARNING: Multiple files opened, ignoring all but the first one.");
+			log::warn!("Multiple files opened, ignoring all but the first one.");
 		}
 
 		let now = Instant::now();
 		let root = parse::from_file(&file_paths[0]);
 		let elapsed = now.elapsed();
-		println!(
+		log::info!(
 			"Time to parse file: {}ms",
 			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 		);
@@ -956,7 +956,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			sources_tree_view.append_column(&column);
 			sources_tree_view.set_property("activate-on-single-click", &true);
 			//connect_row_activated<F: Fn(&Self, &TreePath, &TreeViewColumn)
-			//sources_tree_view.connect_row_activated(|tree_view, path, column| { println!("row-activated\n{:?}\n{:?}\n{:?}", tree_view, path.get_indices(), column) } ); //TODO: Hook up row-activated event
+			//sources_tree_view.connect_row_activated(|tree_view, path, column| { log::info!("row-activated\n{:?}\n{:?}\n{:?}", tree_view, path.get_indices(), column) } ); //TODO: Hook up row-activated event
 			//https://gtk-rs.org/docs/gtk/trait.TreeViewExt.html
 
 			let left_store_clone = left_store.clone(); //GTK objects are refcounted, just clones ref
@@ -1037,7 +1037,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		severity: model::LogLevel,
 		drawing_area: &gtk::DrawingArea,
 	) {
-		println!("Active: {} ({:?})", w.is_active(), severity);
+		log::info!("Active: {} ({:?})", w.is_active(), severity);
 		store.filter_store(
 			&|entry: &LogEntryExt| entry.severity == severity,
 			w.is_active(),
@@ -1147,14 +1147,14 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	) {
 		let search_text = w.text().as_str().to_string();
 		if search_text.is_empty() {
-			println!("Search empty");
+			log::info!("Search empty");
 			store.filter_store(
 				&|_entry: &LogEntryExt| true,
 				true,
 				crate::model_internal::VISIBLE_OFF_FILTER,
 			);
 		} else {
-			println!("search_changed {}", &search_text);
+			log::info!("search_changed {}", &search_text);
 			store.filter_store(
 				&|entry: &LogEntryExt| entry.message.contains(&search_text),
 				true,
@@ -1207,7 +1207,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		}
 	}
 
-	println!("before build_log_store");
+	log::info!("before build_log_store");
 	let now = Instant::now();
 	build_log_store(&mut store_rc.borrow_mut().store, &mut log_source_root_ext);
 
@@ -1245,11 +1245,11 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	); //set all to active, initialize ids
 
 	let elapsed = now.elapsed();
-	println!(
+	log::info!(
 		"Time to create store: {}ms",
 		elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 	);
-	println!("after build_log_store");
+	log::info!("after build_log_store");
 
 	//-------------------------------------------------------------------------------
 
@@ -1294,13 +1294,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	split_pane.pack2(&drawing_area, true, false);
 
 	//https://gtk-rs.org/docs/gdk/enums/key/index.html
-	//println!("CODES: {} {} {} {}", gdk::keys::constants::Control_L, gdk::keys::constants::Control_R, gdk::keys::constants::Shift_L, gdk::keys::constants::Shift_R);
+	//log::info!("CODES: {} {} {} {}", gdk::keys::constants::Control_L, gdk::keys::constants::Control_R, gdk::keys::constants::Shift_L, gdk::keys::constants::Shift_R);
 	/*You should place GtkDrawArea in GtkEventBox and then doing all that stuff from GtkEventBox. As far as I remember, this is happening because there are not these events for GtkDrawArea. One in stackoverflow explained that, but only with GtkImage. I know, that GtkDrawArea in GtkEventBox works, because I am currently writing app that uses it (app is in c, but it should work for c++ too).
 	https://stackoverflow.com/questions/52171141/gtkmm-how-to-attach-keyboard-events-to-an-drawingarea*/
 	{
 		let store_rc_clone = store_rc.clone();
 		window.connect_key_press_event(move |_window, event_key| {
-			println!(
+			log::info!(
 				"KEY PRESSED! {} {}",
 				event_key.keyval(),
 				event_key.hardware_keycode()
@@ -1353,7 +1353,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		#[allow(clippy::redundant_clone)]
 		let store_rc_clone = store_rc.clone();
 		window.connect_key_release_event(move |_window, event_key| {
-			println!(
+			log::info!(
 				"KEY RELEASED! {} {}",
 				event_key.keyval(),
 				event_key.hardware_keycode()
@@ -1390,6 +1390,25 @@ fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 }
 
 fn main() {
+	fern::Dispatch::new()
+		// Perform allocation-free log formatting
+		.format(|out, message, record| {
+			out.finish(format_args!(
+				"{}[{}][{}] {}",
+				chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+				record.target(),
+				record.level(),
+				message
+			))
+		})
+		.level(log::LevelFilter::Warn)
+		.level_for("sherlog", log::LevelFilter::Trace)
+		.chain(std::io::stdout())
+		//.chain(fern::log_file("output.log").unwrap())
+		// Apply globally
+		.apply()
+		.unwrap();
+
 	// https://developer.gnome.org/CommandLine/
 	// https://developer.gnome.org/GtkApplication/
 
@@ -1405,11 +1424,11 @@ fn main() {
 	// ignores unstructured log handlers (glib::log_set_handler).
 
 	//fn printerr(msg: &str) {
-	//	println!("RustA: {}", msg);
+	//	log::info!("RustA: {}", msg);
 	//}
 
 	//fn printerr2(a: &str, b: glib::LogLevel, c: &str) {
-	//	println!("RustB: {}, {:?}, {}", a, b, c);
+	//	log::info!("RustB: {}, {:?}, {}", a, b, c);
 	//}
 
 	//https://developer.gnome.org/glib/stable/glib-Warnings-and-Assertions.html
@@ -1456,14 +1475,14 @@ fn main() {
 /*
 DateTime utilities:
 let dt = Utc.ymd(2018, 1, 26).and_hms_micro(18, 30, 9, 453_829);
-println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
+log::info!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 let ts_milli : u64 = 1568208334469;
 let ts_sec   : u64 = ts_milli / 1000;
 let ts_nano  : u32 = ((ts_milli - ts_sec * 1000) * 1000_000) as u32;
 let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(ts_sec as i64, ts_nano).expect("Invalid timestamp encountered"), Utc);
-println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
+log::info!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 let dt : DateTime::<Utc> = DateTime::<FixedOffset>::parse_from_rfc3339("1996-12-19T16:39:57-08:00").expect("Parse error!").with_timezone(&Utc);
-println!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
+log::info!("{}", dt.to_rfc3339_opts(SecondsFormat::Millis, false));
 */
 
 /*

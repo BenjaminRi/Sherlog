@@ -23,6 +23,7 @@ gtk = "0.15.4"
 gtk-sys = "0.15.3"
 gobject-sys = "0.15.5"
 log = "0.4.14"
+fern = "0.6.0"
 chrono = "0.4.19"
 regex = "1.5.4"
 zip = { version = "0.5.9", features = ["deflate"], default-features = false }

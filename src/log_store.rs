@@ -221,7 +221,10 @@ impl LogStoreLinear {
 			}
 			if !found {
 				self.viewport_offset = self.last_offset;
-				println!("Not found {}!!", rel_offset);
+				log::info!(
+					"Anchor not visible, substitute anchor with offset {} not found",
+					rel_offset
+				);
 			}
 			self.scroll(-(rel_offset as i64), self.visible_lines);
 		}

@@ -39,7 +39,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 		let outpath = PathBuf::from(file.name());
 		let stem = outpath.file_stem().unwrap();
 		let stem = stem.to_string_lossy();
-		//println!("File contained: {}", &stem);
+		//log::info!("File contained: {}", &stem);
 
 		// .ZIP specification, Version: 6.3.9, Paragraph 4.4.17 file name: (Variable)
 		// All slashes MUST be forward slashes '/' as opposed to backwards slashes '\' [...]
@@ -50,7 +50,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				match extension.to_string_lossy().as_ref() {
 					"log" => {
 						if stem.starts_with("ScanLib_") {
-							println!("Log file (ScanLib): {}", &stem);
+							log::info!("Log file (ScanLib): {}", &stem);
 							let root = model::LogSource {
 								name: stem.to_string(),
 								children: {
@@ -59,7 +59,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 							};
 							scanlib_child_sources.push(scanlib_log::to_log_entries(file, root));
 						} else {
-							println!("Log file (RDS): {}", &stem);
+							log::info!("Log file (RDS): {}", &stem);
 							let root = model::LogSource {
 								name: stem.to_string(),
 								children: {
@@ -70,7 +70,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 						}
 					}
 					unknown_extension => {
-						println!("Unknown extension in RDS folder: {}", unknown_extension)
+						log::warn!("Unknown extension in RDS folder: {}", unknown_extension)
 					}
 				}
 			}
@@ -84,7 +84,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 					});
 				}
 				"xlog" => {
-					//println!("XLOG: {}", &stem);
+					//log::info!("XLOG: {}", &stem);
 					let root = model::LogSource {
 						name: stem.to_string(),
 						children: {
@@ -142,7 +142,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 			"Unknown application name"
 		};
 
-		//println!("{:?} {:?} {:?} {:?}", _date_time, channel_name, _process_id, _application_name);
+		//log::info!("{:?} {:?} {:?} {:?}", _date_time, channel_name, _process_id, _application_name);
 
 		let source_option = client_log_sources.get_mut(channel_name);
 		if let Some(source) = source_option {
@@ -227,11 +227,11 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				};
 				child_sources.push(glog::to_log_entries(reader, root));
 			}
-			println!("--------------------");
-			println!("Glog file: {:?}", file);
+			log::info!("--------------------");
+			log::info!("Glog file: {:?}", file);
 			last_group = file.group_name;
 		} else {
-			println!("Glog file: {:?}", file);
+			log::info!("Glog file: {:?}", file);
 		}
 		deque.push_back(file.index);
 	}
@@ -408,7 +408,7 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 			}
 		}
 		model::LogSourceContents::Entries(v) => {
-			println!("Adjust sensor timestamps: {:?}", source.name);
+			log::info!("Adjust sensor timestamps: {:?}", source.name);
 
 			#[derive(Debug, PartialEq)]
 			struct Correction {
@@ -446,11 +446,15 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 									};
 
 								if old_correction == active_correction {
-									println!("WARNING: Overwriting EtherCAT Time with same content! {:?}", active_correction);
+									log::warn!(
+										"Overwriting EtherCAT Time with same content! {:?}",
+										active_correction
+									);
 								} else if old_session_id_opt == Some(*session_id) {
-									println!(
-										"WARNING: Overwriting EtherCAT Time! Old: {:?}, New: {:?}",
-										old_correction, active_correction
+									log::warn!(
+										"Overwriting EtherCAT Time! Old: {:?}, New: {:?}",
+										old_correction,
+										active_correction
 									);
 								} else {
 									// This is the happy path for reading timestamp corrections.
@@ -458,13 +462,13 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 									// - The very first correction is read
 									// - A valid correction is read after the last one was invalidated by e.g. a session change
 									// - A valid correction replaces a previous valid correction due to session change
-									//println!(
+									//log::info!(
 									//	"Read fresh timestamp correction: {:?}",
 									//	active_correction
 									//);
 								}
 							} else {
-								println!("WARNING: could not parse EtherCAT timestamp {}", delta);
+								log::warn!("could not parse EtherCAT timestamp {}", delta);
 								active_correction = None;
 							}
 						} else {
@@ -486,8 +490,8 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 											) {
 											entry.timestamp = corrected_timestamp;
 										} else {
-											println!(
-												"WARNING: could not correct timestamp with offset: {}",
+											log::warn!(
+												"could not correct timestamp with offset: {}",
 												correction.delta
 											);
 										}
@@ -502,7 +506,7 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 								// Or else, it happens if the bus never connected, so the device never got the EtherCAT offset.
 								// This second case is also a normal thing to occur over the lifetime of a device,
 								// but we have to think about how to sort these log lines as their timestamp remains around 1970.
-								//println!("WARNING: Could not find EtherCAT offset for {}!", entry.message);
+								//log::warn!("Could not find EtherCAT offset for {}!", entry.message);
 							}
 						}
 					} else {
@@ -510,8 +514,8 @@ fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
 					}
 				} else {
 					// "sensorbase_BaseboardSpecialLogs_1_v.glog" lacks session ID, these logs are special
-					println!(
-						"WARNING: No session ID found for sensor log entry: {}",
+					log::warn!(
+						"No session ID found for sensor log entry: {}",
 						entry.message
 					);
 					active_correction = None;
