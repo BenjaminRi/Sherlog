@@ -786,7 +786,7 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	let mut dialog_vec: Vec<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
 
-	log::info!("{:?}", file_paths);
+	log::info!("File paths: {:?}", file_paths);
 	let log_source_root = if !file_paths.is_empty() {
 		if file_paths.len() > 1 {
 			log::warn!("Multiple files opened, ignoring all but the first one.");
