@@ -1427,8 +1427,8 @@ fn main() {
 	//	log::info!("RustA: {}", msg);
 	//}
 
-	//fn printerr2(a: &str, b: glib::LogLevel, c: &str) {
-	//	log::info!("RustB: {}, {:?}, {}", a, b, c);
+	//fn printerr2(a: Option<&str>, b: glib::LogLevel, c: &str) {
+	//	log::info!("RustB: {:?}, {:?}, {}", a, b, c);
 	//}
 
 	//https://developer.gnome.org/glib/stable/glib-Warnings-and-Assertions.html
