@@ -21,9 +21,8 @@ If you haven't already installed Rust, it is recommended to do so via `rustup-in
 Install [MSYS2](https://www.msys2.org/). For simplicity, this tutorial will assume that you installed it in the directory `C:\msys64`. Start the MSYS2 console `C:\msys64\msys2.exe` and run the following commands inside that console, confirming the install prompts:
 
 ```sh
-pacman -S mingw-w64-x86_64-gtk3
-pacman -S mingw-w64-x86_64-pkg-config
-pacman -S mingw-w64-x86_64-gcc
+pacman -Syu # Update all packages, if necessary
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf mingw-w64-x86_64-gtk3
 ```
 
 After that, you can close the MSYS2 console. Depending on your needs, you can choose to work in the Windows console or, if you prefer the GNU/Linux environment instead, use the MSYS2 Mingw console.

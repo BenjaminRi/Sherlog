@@ -136,7 +136,6 @@ ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-bm
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-gif.dll"
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-icns.dll"
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-ico.dll"
-${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jasper.dll"
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-jpeg.dll"
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-png.dll"
 ${Operation} "${PathPrefix}\lib\gdk-pixbuf-2.0\2.10.0\loaders\libpixbufloader-pnm.dll"
