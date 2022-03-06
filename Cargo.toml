@@ -15,13 +15,7 @@ OriginalFilename = "sherlog.exe"
 LegalCopyright = "Copyright © 2020 Benjamin Richner"
 
 [dependencies]
-cairo-rs = "0.15.6"
-gdk = "0.15.4"
-gio = "0.15.6"
-glib = "0.15.6"
 gtk = "0.15.4"
-gtk-sys = "0.15.3"
-gobject-sys = "0.15.5"
 log = "0.4.14"
 fern = "0.6.0"
 chrono = "0.4.19"

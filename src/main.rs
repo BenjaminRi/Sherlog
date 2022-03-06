@@ -1,13 +1,14 @@
 //Hide Windows cmd console on opening the application
 //#![windows_subsystem = "windows"]
 
-extern crate cairo;
 extern crate chrono;
-extern crate gdk;
-extern crate gio;
-extern crate glib;
 extern crate gtk;
 extern crate log;
+
+use gtk::cairo;
+use gtk::gdk;
+use gtk::gio;
+use gtk::glib;
 
 use gdk::EventMask;
 use gio::prelude::*;
@@ -26,7 +27,6 @@ mod log_store;
 mod model;
 mod model_internal;
 mod parse;
-mod tree_model;
 
 use log_store::LogStoreLinear;
 use log_store::ScrollBarVert;
