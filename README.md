@@ -67,7 +67,7 @@ On Linux, install the [Rust compiler](https://www.rust-lang.org/tools/install).
 Then you need to get a linker (this will come with build-essential) and the GTK development libraries and header files. On Debian/Ubuntu, this is done via APT:
 
 ```sh
-sudo apt install build-essential libglib2.0-dev libcairo2-dev libpango1.0-dev libatk1.0-dev libgtk-3-dev
+sudo apt install build-essential libgtk-3-dev
 ```
 
 Build the project by `cd`ing to the project folder and running `cargo build`.
