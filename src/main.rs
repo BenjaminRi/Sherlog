@@ -1,6 +1,124 @@
 //Hide Windows cmd console on opening the application
 //#![windows_subsystem = "windows"]
 
+use gtk::prelude::*;
+use gtk::{Application, ApplicationWindow, Button};
+fn main() {
+	//std::env::set_var("GTK_THEME", "Aero");
+	//SET GTK_DEBUG=interactive
+	//https://docs.rs/gtk/latest/gtk/struct.ApplicationWindow.html
+	//https://docs.rs/gtk/latest/gtk/builders/struct.ApplicationWindowBuilder.html
+	
+    // Create a new application
+    let app = Application::builder()
+        .application_id("org.gtk-rs.example")
+        .build();
+		
+
+	app.connect_startup(|_app| {
+		// The CSS "magic" happens here.
+		let provider = gtk::CssProvider::new();
+		provider.load_from_data(include_bytes!("style.css"));
+		// We give the CssProvided to the default screen so the CSS rules we added
+		// can be applied to our window.
+		gtk::StyleContext::add_provider_for_display(
+			&gtk::gdk::Display::default().expect("Could not connect to a display."),
+			&provider,
+			gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+		);
+
+        // We build the application UI.
+        //build_ui(_app);
+    });
+
+    // Connect to "activate" signal of `app`
+    app.connect_activate(build_ui);
+
+    // Run the application
+    app.run();
+}
+
+fn build_ui(app: &Application) {
+    // Create a button with label and margins
+    let button = Button::builder()
+        .label("Press me!")
+        .margin_top(12)
+        .margin_bottom(12)
+        .margin_start(12)
+        .margin_end(12)
+        .build();
+
+    // Connect to "clicked" signal of `button`
+    button.connect_clicked(move |button| {
+        // Set the label to "Hello World!" after the button has been clicked on
+        button.set_label("Hello World!");
+    });
+
+    // Create a window
+    let window = ApplicationWindow::builder()
+        .application(app)
+        .title("My GTK App")
+        .child(&button)
+        .build();
+	
+	//let headerbar = gtk::HeaderBar::builder()
+	//	.margin_top(0)
+	//	.build();
+	//window.set_titlebar(Some(&headerbar));
+		
+	println!("{:?}", window.titlebar());
+	
+	let settings = window.settings();
+	println!("{:?}", settings.gtk_icon_theme_name());
+	println!("{:?}", settings.gtk_theme_name());
+	println!("{:?}", settings.gtk_decoration_layout());
+
+    // Present window
+    window.present();
+}
+
+
+/*
+SET GTK_DEBUG=interactive
+
+------------
+
+.default-decoration.titlebar:not(headerbar), headerbar.default-decoration { min-height: 28px; padding: 4px; }
+
+button.close { margin-left: 1px; margin-right: 6px; min-height: 13px; padding-top: 0px; padding-bottom: 0px; padding-left: 5px; padding-right: 5px; border-radius: 0px; color: white; -gtk-icon-shadow: 0 1px #707070, 1px 0px #707070, 0 -1px #707070, -1px 0 #707070; }
+
+-------------
+
+window.csd { box-shadow: 5px 0px 0px 0px #707070, 0px 5px 0px 0px #707070, 0px 0px 5px 0px #707070, 0px 0px 0px 5px #707070, 4px 0px 0px 0px #b5cee7, 0px 4px 0px 0px #b5cee7, 0px 0px 4px 0px #b5cee7, 0px 0px 0px 4px #b5cee7; margin: 0px; border-radius: 0px 0px 0 0; }
+
+-------------
+
+
+
+/*
+You can type here any CSS rule recognized by GTK.
+You can temporarily disable this custom CSS by clicking on the “Pause” button above.
+
+Changes are applied instantly and globally, for the whole application.
+*/
+
+.default-decoration.titlebar:not(headerbar), headerbar.default-decoration { padding-right: 0px; padding-top: 0px; }
+
+button.close { border-radius: 0px; }
+
+
+---------------------------
+
+.default-decoration.titlebar:not(headerbar), headerbar.default-decoration { padding-right: 0px; padding-top: 0px; }
+
+button.close { border-radius: 0px; padding-top: 4px; padding-right: 4px; }
+button.minimize { border-radius: 0px; padding-top: 4px; }
+button.maximize { border-radius: 0px; padding-top: 4px; }
+
+
+*/
+
+/*
 extern crate chrono;
 extern crate gtk;
 extern crate log;
@@ -1541,6 +1659,7 @@ fn main() {
 	// https://gtk-rs.org/docs/gio/prelude/trait.ApplicationExtManual.html#tymethod.run
 	application.run();
 }
+*/
 
 /*
 DateTime utilities:
