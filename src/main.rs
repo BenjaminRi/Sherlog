@@ -2,18 +2,50 @@
 //#![windows_subsystem = "windows"]
 
 use gtk::prelude::*;
+use gtk::{gdk, gio, glib};
 use gtk::{Application, ApplicationWindow, Button};
+
+fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
+	let mut result = Vec::new();
+	for gio_file in gio_files {
+		result.push(gio_file.path().expect("Invalid file path"));
+	}
+	result
+}
+
 fn main() {
+	fern::Dispatch::new()
+		// Perform allocation-free log formatting
+		.format(|out, message, record| {
+			out.finish(format_args!(
+				"{}[{}][{}] {}",
+				chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+				record.target(),
+				record.level(),
+				message
+			))
+		})
+		.level(log::LevelFilter::Warn)
+		.level_for("sherlog", log::LevelFilter::Trace)
+		.chain(std::io::stdout())
+		//.chain(fern::log_file("output.log").unwrap())
+		// Apply globally
+		.apply()
+		.unwrap();
+
+	// How to select/force theme:
 	//std::env::set_var("GTK_THEME", "Aero");
-	//SET GTK_DEBUG=interactive
-	//https://docs.rs/gtk/latest/gtk/struct.ApplicationWindow.html
-	//https://docs.rs/gtk/latest/gtk/builders/struct.ApplicationWindowBuilder.html
-	
-    // Create a new application
-    let app = Application::builder()
-        .application_id("org.gtk-rs.example")
-        .build();
-		
+
+	// Activate GTK inspector:
+	// SET GTK_DEBUG=interactive
+
+	let mut flags = gio::ApplicationFlags::empty();
+	flags.insert(gio::ApplicationFlags::NON_UNIQUE);
+	flags.insert(gio::ApplicationFlags::HANDLES_OPEN);
+	let app = Application::builder()
+		.application_id("com.github.BenjaminRi.Sherlog")
+		.flags(flags)
+		.build();
 
 	app.connect_startup(|_app| {
 		// The CSS "magic" happens here.
@@ -26,57 +58,46 @@ fn main() {
 			&provider,
 			gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
 		);
+	});
 
-        // We build the application UI.
-        //build_ui(_app);
-    });
+	app.connect_open(move |app, gio_files, _| {
+		build_ui(app, &gio_files_to_paths(gio_files));
+	});
 
-    // Connect to "activate" signal of `app`
-    app.connect_activate(build_ui);
+	app.connect_activate(|app| {
+		build_ui(app, &Vec::new());
+	});
 
-    // Run the application
-    app.run();
+	app.run();
 }
 
-fn build_ui(app: &Application) {
-    // Create a button with label and margins
-    let button = Button::builder()
-        .label("Press me!")
-        .margin_top(12)
-        .margin_bottom(12)
-        .margin_start(12)
-        .margin_end(12)
-        .build();
+fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
+	let mut window = ApplicationWindow::builder()
+		.application(app)
+		.title("Sherlog")
+		.default_width(640)
+		.default_height(480)
+		.build();
 
-    // Connect to "clicked" signal of `button`
-    button.connect_clicked(move |button| {
-        // Set the label to "Hello World!" after the button has been clicked on
-        button.set_label("Hello World!");
-    });
+	// Create a button with label and margins
+	let button = Button::builder()
+		.label("Press me!")
+		.margin_top(12)
+		.margin_bottom(12)
+		.margin_start(12)
+		.margin_end(12)
+		.build();
 
-    // Create a window
-    let window = ApplicationWindow::builder()
-        .application(app)
-        .title("My GTK App")
-        .child(&button)
-        .build();
-	
-	//let headerbar = gtk::HeaderBar::builder()
-	//	.margin_top(0)
-	//	.build();
-	//window.set_titlebar(Some(&headerbar));
-		
-	println!("{:?}", window.titlebar());
-	
-	let settings = window.settings();
-	println!("{:?}", settings.gtk_icon_theme_name());
-	println!("{:?}", settings.gtk_theme_name());
-	println!("{:?}", settings.gtk_decoration_layout());
+	// Connect to "clicked" signal of `button`
+	button.connect_clicked(move |button| {
+		// Set the label to "Hello World!" after the button has been clicked on
+		button.set_label("Hello World!");
+	});
 
-    // Present window
-    window.present();
+	// Present window
+	window.set_child(Some(&button));
+	window.present();
 }
-
 
 /*
 SET GTK_DEBUG=interactive
