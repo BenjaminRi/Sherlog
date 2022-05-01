@@ -13,6 +13,24 @@ fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	result
 }
 
+
+fn about_dialog(window: &gtk::ApplicationWindow, app: &gtk::Application) -> gtk::AboutDialog {
+	gtk::AboutDialog::builder()
+		.name("Sherlog")
+		.version(env!("CARGO_PKG_VERSION"))
+		.website_label("Website")
+		.website(env!("CARGO_PKG_REPOSITORY"))
+		.comments(env!("CARGO_PKG_DESCRIPTION"))
+		.license_type(gtk::License::Gpl30Only)
+		.copyright("Copyright © 2019-2022 Benjamin Richner")
+		.authors(vec![env!("CARGO_PKG_AUTHORS").to_string()])
+		.transient_for(window)
+		.application(app)
+		.modal(true)
+		//.logo_icon_name("TODO")
+		.build()
+}
+
 fn main() {
 	fern::Dispatch::new()
 		// Perform allocation-free log formatting
@@ -78,7 +96,32 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		.default_width(640)
 		.default_height(480)
 		.build();
-
+	
+	
+	let about = gio::SimpleAction::new("about", None);
+	let window_c = window.clone();
+	let app_c = app.clone();
+	about.connect_activate(move |_, _| {
+		let d = about_dialog(&window_c, &app_c);
+		d.present();
+	});
+	app.add_action(&about);
+	
+	let header_bar = gtk::HeaderBar::new();
+	let menu_model = gio::Menu::new();
+	//menu_model.append(Some("Preferences"), Some("app.preferences"));
+	menu_model.append(Some("About Sherlog"), Some("app.about"));
+	let menu_popover = gtk::PopoverMenu::builder()
+		.menu_model(&menu_model)
+		.build();
+	let menu_button = gtk::MenuButton::builder().popover(&menu_popover).build();
+	header_bar.pack_end(&menu_button);
+	
+	//let search_button = gtk::ToggleButton::new();
+    //search_button.set_icon_name("system-search-symbolic");
+    //header_bar.pack_end(&search_button);
+	window.set_titlebar(Some(&header_bar));
+	
 	// Create a button with label and margins
 	let button = Button::builder()
 		.label("Press me!")

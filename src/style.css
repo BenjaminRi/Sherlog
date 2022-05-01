@@ -1,5 +1,8 @@
-.default-decoration.titlebar:not(headerbar), headerbar.default-decoration { padding-right: 0px; padding-top: 0px; }
+window { border-radius: 0px; }
+headerbar.titlebar { padding: 0px; }
 
-button.close { border-radius: 0px; padding-top: 4px; padding-right: 4px; }
-button.minimize { border-radius: 0px; padding-top: 4px; }
-button.maximize { border-radius: 0px; padding-top: 4px; }
+windowcontrols.end { border-spacing: 10px 0px; }
+button.minimize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; }
+button.maximize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; }
+button.close    { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; transition-duration: 0.2s; }
+button.close:hover { color: rgb(255, 255, 255); background-color: rgb(232, 17, 35); }
