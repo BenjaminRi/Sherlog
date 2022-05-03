@@ -2,8 +2,10 @@
 //#![windows_subsystem = "windows"]
 
 use gtk::prelude::*;
+#[allow(unused_imports)]
 use gtk::{gdk, gio, glib};
-use gtk::{Application, ApplicationWindow, Button};
+#[allow(unused_imports)]
+use gtk::{Align, Application, ApplicationWindow, Button, Frame, Label, Notebook, Spinner};
 
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	let mut result = Vec::new();
@@ -12,7 +14,6 @@ fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	}
 	result
 }
-
 
 fn about_dialog(window: &gtk::ApplicationWindow, app: &gtk::Application) -> gtk::AboutDialog {
 	gtk::AboutDialog::builder()
@@ -96,33 +97,20 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		.default_width(640)
 		.default_height(480)
 		.build();
-	
-	
-	let about = gio::SimpleAction::new("about", None);
-	let window_c = window.clone();
-	let app_c = app.clone();
-	about.connect_activate(move |_, _| {
-		let d = about_dialog(&window_c, &app_c);
-		d.present();
-	});
-	app.add_action(&about);
-	
-	let header_bar = gtk::HeaderBar::new();
-	let menu_model = gio::Menu::new();
-	//menu_model.append(Some("Preferences"), Some("app.preferences"));
-	menu_model.append(Some("About Sherlog"), Some("app.about"));
-	let menu_popover = gtk::PopoverMenu::builder()
-		.menu_model(&menu_model)
-		.build();
-	let menu_button = gtk::MenuButton::builder().popover(&menu_popover).build();
-	header_bar.pack_end(&menu_button);
-	
-	//let search_button = gtk::ToggleButton::new();
-    //search_button.set_icon_name("system-search-symbolic");
-    //header_bar.pack_end(&search_button);
-	window.set_titlebar(Some(&header_bar));
-	
-	// Create a button with label and margins
+
+	{
+		let about = gio::SimpleAction::new("about", None);
+		let window_c = window.clone();
+		let app_c = app.clone();
+		about.connect_activate(move |_, _| {
+			let d = about_dialog(&window_c, &app_c);
+			d.present();
+		});
+		app.add_action(&about);
+	}
+
+	let notebook = Notebook::builder().show_border(false).build();
+
 	let button = Button::builder()
 		.label("Press me!")
 		.margin_top(12)
@@ -131,14 +119,27 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		.margin_end(12)
 		.build();
 
-	// Connect to "clicked" signal of `button`
-	button.connect_clicked(move |button| {
-		// Set the label to "Hello World!" after the button has been clicked on
-		button.set_label("Hello World!");
-	});
+	let label = Label::new(Some("Foo"));
+
+	notebook.append_page(&button, Some(&label));
+
+	let spinner = Spinner::builder()
+		.width_request(50)
+		.height_request(50)
+		.vexpand(false)
+		.hexpand(false)
+		.halign(Align::Center)
+		.valign(Align::Center)
+		.build();
+	spinner.start();
+
+	let spinner_clone = spinner.clone();
+
+	notebook.append_page(&spinner, Option::<&Label>::None);
+	notebook.set_tab_reorderable(&spinner, true);
 
 	// Present window
-	window.set_child(Some(&button));
+	window.set_child(Some(&notebook));
 	window.present();
 }
 

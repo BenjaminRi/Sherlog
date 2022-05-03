@@ -1,8 +1,11 @@
 window { border-radius: 0px; }
-headerbar.titlebar { padding: 0px; }
+headerbar.titlebar { padding: 0px; background-color: rgb(255,255,255); background-image: none; }
+label.title { font-weight: 200; }
 
-windowcontrols.end { border-spacing: 10px 0px; }
-button.minimize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; }
-button.maximize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; }
-button.close    { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 46px; min-width: 46px; transition-duration: 0.2s; }
+windowcontrols.end { border-spacing: 1px 0px; }
+button.minimize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 28px; min-width: 45px; }
+button.minimize:hover { background-color: rgb(229, 229, 229); }
+button.maximize { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 28px; min-width: 45px; }
+button.maximize:hover { background-color: rgb(229, 229, 229); }
+button.close    { border-style: none; border-radius: 0px; padding: 0px; margin: 0px; min-height: 28px; min-width: 45px; transition-duration: 0.2s; }
 button.close:hover { color: rgb(255, 255, 255); background-color: rgb(232, 17, 35); }
