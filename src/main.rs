@@ -1,11 +1,34 @@
 //Hide Windows cmd console on opening the application
 //#![windows_subsystem = "windows"]
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 use gtk::prelude::*;
 #[allow(unused_imports)]
 use gtk::{gdk, gio, glib};
 #[allow(unused_imports)]
-use gtk::{Align, Application, ApplicationWindow, Button, Frame, Label, Notebook, Spinner};
+use gtk::{
+	glib::clone, glib::MainContext, glib::PRIORITY_DEFAULT, Align, Application, ApplicationWindow,
+	Button, Frame, Label, MessageDialog, Notebook, Spinner,
+};
+
+use std::thread;
+use std::time::Duration;
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+mod log_store;
+mod model;
+mod model_internal;
+mod parse;
+
+use log_store::LogStoreLinear;
+use log_store::ScrollBarVert;
+
+use model_internal::LogEntryExt;
+use model_internal::LogSourceContentsExt;
+use model_internal::LogSourceExt;
 
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	let mut result = Vec::new();
@@ -30,6 +53,92 @@ fn about_dialog(window: &gtk::ApplicationWindow, app: &gtk::Application) -> gtk:
 		.modal(true)
 		//.logo_icon_name("TODO")
 		.build()
+}
+
+fn generate_test_log() -> model::LogSource {
+	let log_entries = vec![
+		model::LogEntry {
+			message: "TestCritical 121343245345".to_string(),
+			severity: model::LogLevel::Critical,
+			..Default::default()
+		},
+		model::LogEntry {
+			message: "TestError 3405834068".to_string(),
+			severity: model::LogLevel::Error,
+			..Default::default()
+		},
+		model::LogEntry {
+			message: "TestWarning 340958349068".to_string(),
+			severity: model::LogLevel::Warning,
+			..Default::default()
+		},
+		model::LogEntry {
+			message: "TestInfo 3049580349568".to_string(),
+			severity: model::LogLevel::Info,
+			..Default::default()
+		},
+		model::LogEntry {
+			message: "TestDebug 0345986045968".to_string(),
+			severity: model::LogLevel::Debug,
+			..Default::default()
+		},
+		model::LogEntry {
+			message: "TestTrace 309468456".to_string(),
+			severity: model::LogLevel::Trace,
+			..Default::default()
+		},
+	];
+
+	let log_source_ex = model::LogSource {
+		name: "example".to_string(),
+		children: { model::LogSourceContents::Entries(log_entries) },
+	};
+	let log_source_ex2_1 = model::LogSource {
+		name: "example2_1".to_string(),
+		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+	};
+	let log_source_ex2 = model::LogSource {
+		name: "example2".to_string(),
+		children: { model::LogSourceContents::Sources(vec![log_source_ex2_1]) },
+	};
+	let log_source_ex3 = model::LogSource {
+		name: "example3".to_string(),
+		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+	};
+	let log_source_ex4_1 = model::LogSource {
+		name: "example4_1".to_string(),
+		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+	};
+	let log_source_ex4_2 = model::LogSource {
+		name: "example4_2".to_string(),
+		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
+	};
+	let log_source_ex4 = model::LogSource {
+		name: "example4".to_string(),
+		children: { model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) },
+	};
+
+	model::LogSource {
+		name: "Root LogSource".to_string(),
+		children: {
+			model::LogSourceContents::Sources(vec![
+				log_source_ex,
+				log_source_ex2,
+				log_source_ex3,
+				log_source_ex4,
+			])
+		},
+	}
+}
+
+struct GuiModel {
+	notebook: Notebook,
+}
+
+impl GuiModel {
+	fn new(notebook: Notebook) -> GuiModel {
+		GuiModel { notebook }
+	}
 }
 
 fn main() {
@@ -59,7 +168,7 @@ fn main() {
 	// SET GTK_DEBUG=interactive
 
 	let mut flags = gio::ApplicationFlags::empty();
-	flags.insert(gio::ApplicationFlags::NON_UNIQUE);
+	//flags.insert(gio::ApplicationFlags::NON_UNIQUE);
 	flags.insert(gio::ApplicationFlags::HANDLES_OPEN);
 	let app = Application::builder()
 		.application_id("com.github.BenjaminRi.Sherlog")
@@ -67,6 +176,7 @@ fn main() {
 		.build();
 
 	app.connect_startup(|_app| {
+		println!("connect_startup");
 		// The CSS "magic" happens here.
 		let provider = gtk::CssProvider::new();
 		provider.load_from_data(include_bytes!("style.css"));
@@ -77,15 +187,33 @@ fn main() {
 			&provider,
 			gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
 		);
+		//build_ui(_app, &Vec::new());
 	});
 
 	app.connect_open(move |app, gio_files, _| {
+		println!("connect_open");
 		build_ui(app, &gio_files_to_paths(gio_files));
 	});
 
 	app.connect_activate(|app| {
+		println!("connect_activate");
 		build_ui(app, &Vec::new());
 	});
+
+	//Without NON_UNIQUE:
+	//Process 1
+	//connect_startup
+	//connect_activate
+	//connect_activate
+	//Process 2 (quits immediately)
+	//
+	// With NON_UNIQUE:
+	//Process 1
+	//connect_startup
+	//connect_activate
+	//Process 2
+	//connect_startup
+	//connect_activate
 
 	app.run();
 }
@@ -109,7 +237,43 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		app.add_action(&about);
 	}
 
+	let mut dialog_vec: Vec<MessageDialog> = Vec::<MessageDialog>::new();
+	/*
+	log::info!("File paths: {:?}", file_paths);
+	let log_source_root = if !file_paths.is_empty() {
+		if file_paths.len() > 1 {
+			log::warn!("Multiple files opened, ignoring all but the first one.");
+		}
+
+		let now = Instant::now();
+		let root = parse::from_file(&file_paths[0]);
+		let elapsed = now.elapsed();
+		log::info!(
+			"Time to parse file: {}ms",
+			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+		);
+
+		match root {
+			Ok(root) => root,
+			Err(err) => {
+				let error_str = format!("Error: {}", err);
+				dialog_vec.push(gtk::MessageDialog::new(
+					Some(&window),
+					gtk::DialogFlags::empty(),
+					gtk::MessageType::Error,
+					gtk::ButtonsType::Ok,
+					&error_str,
+				));
+				log_source_root
+			}
+		}
+	} else {
+		log_source_root
+	};*/
+
 	let notebook = Notebook::builder().show_border(false).build();
+
+	let gui_model = Rc::new(RefCell::new(GuiModel::new(notebook.clone())));
 
 	let button = Button::builder()
 		.label("Press me!")
@@ -122,6 +286,83 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	let label = Label::new(Some("Foo"));
 
 	notebook.append_page(&button, Some(&label));
+
+	let window_clone = window.clone();
+	/*thread::spawn(move || {
+		let spinner = Spinner::builder()
+		 .width_request(50)
+		 .height_request(50)
+		 .vexpand(false)
+		 .hexpand(false)
+		 .halign(Align::Center)
+		 .valign(Align::Center)
+		 .build();
+	 spinner.start();
+	 //window_clone.set_child(Some(&spinner));
+	 let main_context = MainContext::default();
+	 // The main loop executes the asynchronous block
+	 main_context.spawn_local(clone!(@weak window_clone => async move {
+		 // Deactivate the button until the operation is done
+
+	 }));
+	});*/
+	let window_refcell = Rc::new(RefCell::new(window.clone()));
+	let main_context = MainContext::default();
+	// The main loop executes the asynchronous block
+	main_context.spawn_local(clone!(@weak window_refcell => async move {
+		// Deactivate the button until the operation is done
+
+	}));
+
+	let (sender, receiver) = MainContext::channel(PRIORITY_DEFAULT);
+
+	// The main loop executes the closure as soon as it receives the message
+	/*receiver.attach(
+		None,
+		clone!(@weak window_clone => @default-return Continue(false),
+			move |vector| {
+				println!("{:?}", vector);
+				Continue(true)
+			}
+		),
+	);*/
+
+	let gui_model_rc_clone = gui_model.clone();
+	receiver.attach(None, move |vector| {
+		let foo = gui_model_rc_clone.borrow();
+		let spinner = Spinner::builder()
+			.width_request(50)
+			.height_request(50)
+			.vexpand(false)
+			.hexpand(false)
+			.halign(Align::Center)
+			.valign(Align::Center)
+			.build();
+		spinner.start();
+
+		foo.notebook.append_page(&spinner, Option::<&Label>::None);
+		println!("{:?}", vector);
+		Continue(true)
+	});
+	/*receiver.attach(
+		None,
+		move |vector| {
+			println!("{:?}", vector);
+			Continue(true)
+		}
+	);*/
+
+	let sender_clone = sender.clone();
+	// The long running operation runs now in a separate thread
+	thread::spawn(move || {
+		println!("Starting!");
+		thread::sleep(Duration::from_secs(5));
+		println!("sending now!");
+		sender_clone
+			.send(Vec::<bool>::new())
+			.expect("Could not send through channel");
+		println!("sending done!");
+	});
 
 	let spinner = Spinner::builder()
 		.width_request(50)
@@ -141,6 +382,7 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	// Present window
 	window.set_child(Some(&notebook));
 	window.present();
+	println!("end of func");
 }
 
 /*
@@ -224,7 +466,7 @@ use gtk::{
 	MessageDialog, MessageType, Orientation, TreeStore, TreeView, TreeViewColumn, WindowPosition,
 };
 
-//use std::env::args;
+use std::env::args;
 
 enum LogSourcesColumns {
 	Active = 0,
@@ -426,7 +668,6 @@ fn draw(
 	store: &mut LogStoreLinear,
 	drawing_area: &DrawingArea,
 	ctx: &cairo::Context,
-	font: &str,
 ) -> gtk::Inhibit {
 	//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
 	//log::info!("{}", store.store.len());
@@ -434,11 +675,11 @@ fn draw(
 	//log::info!("w: {} h: {}", drawing_area.allocated_width(), drawing_area.allocated_height());
 
 	ctx.set_source_rgb(1.0, 1.0, 1.0);
-	ctx.paint().unwrap();
+	ctx.paint();
 
 	/*ctx.set_source_rgb(1.0, 0.0, 0.0);
 	ctx.rectangle(10.0, 10.0, 2.0, 2.0);
-	ctx.fill().unwrap();
+	ctx.fill();
 
 	ctx.set_source_rgb(0.0, 0.0, 0.0);
 	ctx.new_sub_path();
@@ -480,7 +721,11 @@ fn draw(
 		//index of filtered element:
 		.enumerate()
 	{
-		ctx.select_font_face(font, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+		ctx.select_font_face(
+			"Lucida Console", //"Calibri"
+			cairo::FontSlant::Normal,
+			cairo::FontWeight::Normal,
+		);
 		ctx.set_font_size(store.font_size);
 
 		let mut draw_highlight = if Some(i) == store.hover_line {
@@ -512,7 +757,7 @@ fn draw(
 				w as f64,
 				store.line_spacing,
 			);
-			ctx.fill().unwrap();
+			ctx.fill();
 		}
 
 		match entry.severity {
@@ -541,11 +786,11 @@ fn draw(
 			+ f64::max(0.0, store.line_spacing - store.font_size) / 2.0;
 		//Anchor point of text is bottom left, excluding descent.
 		//We want to anchor on top left though, so calculate that away:
-		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent();
+		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent;
 
 		let date_str = entry.timestamp.format("%d.%m.%y %T%.3f").to_string();
 		ctx.move_to(store.border_left, font_offset_y);
-		ctx.show_text(&date_str).unwrap();
+		ctx.show_text(&date_str);
 
 		let short_sev = match entry.severity {
 			model::LogLevel::Critical => "CRI",
@@ -557,12 +802,12 @@ fn draw(
 		};
 
 		ctx.move_to(store.border_left + 180.0, font_offset_y);
-		ctx.show_text(&short_sev).unwrap();
+		ctx.show_text(&short_sev);
 
 		if let Some(anchor_offset) = store.anchor_offset {
 			if offset == anchor_offset {
 				ctx.move_to(store.border_left - 20.0, font_offset_y);
-				ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
+				ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 				anchor_drawn = true;
 			} else if !anchor_drawn {
 				if offset >= anchor_offset {
@@ -570,14 +815,14 @@ fn draw(
 						store.border_left - 20.0,
 						font_offset_y - store.line_spacing / 2.0,
 					);
-					ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
+					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
 				} else if i == store.visible_lines - 1 || offset == store.last_offset {
 					ctx.move_to(
 						store.border_left - 20.0,
 						font_offset_y + store.line_spacing / 2.0,
 					);
-					ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
+					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
 				}
 			}
@@ -589,13 +834,13 @@ fn draw(
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
 		ctx.set_font_face(&new_font_face);*/
 
-		ctx.show_text(&entry.message).unwrap();
+		ctx.show_text(&entry.message);
 
 		/*if let Some(source_name) = store.log_sources.get(&entry.source_id) {
 			ctx.move_to(store.border_left + 210.0, font_offset_y + store.font_size);
 			ctx.set_font_size(f64::round(store.font_size * 0.7));
 			ctx.set_source_rgb(0.5, 0.5, 0.5);
-			ctx.show_text(source_name).unwrap();
+			ctx.show_text(source_name);
 			ctx.set_font_size(store.font_size);
 		}*/
 	}
@@ -627,7 +872,7 @@ fn draw(
 			store.scroll_bar.bar_width,
 			store.scroll_bar.bar_height,
 		);
-		ctx.fill().unwrap();
+		ctx.fill();
 
 		ctx.set_source_rgb(0.3, 0.3, 0.3);
 		ctx.rectangle(
@@ -636,7 +881,7 @@ fn draw(
 			store.scroll_bar.thumb_width,
 			store.scroll_bar.thumb_height,
 		);
-		ctx.fill().unwrap();
+		ctx.fill();
 	}
 
 	gtk::Inhibit(false)
@@ -862,183 +1107,11 @@ fn handle_evt_motion(
 	gtk::Inhibit(false)
 }
 
-const PREFERRED_FONTS: [&str; 2] = [
-	"Lucida Console", // Ships with Windows, like "Calibri" (which is unfortunately not monospace)
-	"DejaVu Sans Mono", // Generally available on Linux
-];
-
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
 
 fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
-	log::info!("File paths: {:?}", file_paths);
-	let file_path = if !file_paths.is_empty() {
-		if file_paths.len() > 1 {
-			log::warn!("Multiple files opened, ignoring all but the first one.");
-		}
-		Some(&file_paths[0])
-	} else {
-		None
-	};
-
-	let window = gtk::ApplicationWindow::new(application);
-	//window.set_icon_from_file("../images/sherlog_icon.png");
-	window.set_title(&format!(
-		"{} - Sherlog v{}",
-		file_path
-			.map(|p| p.file_name().unwrap_or(p.as_os_str()).to_string_lossy())
-			.unwrap_or(std::borrow::Cow::Borrowed("(No file)")),
-		env!("CARGO_PKG_VERSION")
-	));
-	window.set_border_width(10);
-	window.set_position(gtk::WindowPosition::Center);
-	window.set_default_size(600, 400);
-
-	let pango_ctx = window.pango_context();
-	let preferred_font = pango_ctx
-		.font_map()
-		.map(|font_map| {
-			let mut preferred_font = None;
-			for font in PREFERRED_FONTS {
-				for family in font_map.list_families() {
-					if font == family.name().as_str() {
-						log::info!("Found font: {}", family.name());
-						preferred_font = Some(font);
-						break;
-					}
-				}
-			}
-			preferred_font
-		})
-		.unwrap_or_else(|| Option::<&str>::None)
-		.unwrap_or_else(|| {
-			let preferred_font = PREFERRED_FONTS[0];
-			log::info!(
-				"Could not find preferred font. Trying to use {}",
-				preferred_font
-			);
-			preferred_font
-		});
-
-	//let args = &args().collect::<Vec<_>>();
-	/*//FIXME: Use handle-local-options once https://github.com/gtk-rs/gtk/issues/580 is a thing
-	let mut new_instance = false;
-	for arg in args {
-		match arg.as_str() {
-			"-n" | "--new-instance" => new_instance = true,
-			_ => (),
-		}
-	}*/
-	//log::info!("{:?}", args);
-
-	//Generate fake log entries to test GUI ---------------------------------------------
-
-	let log_entries = vec![
-		model::LogEntry {
-			message: "TestCritical 121343245345".to_string(),
-			severity: model::LogLevel::Critical,
-			..Default::default()
-		},
-		model::LogEntry {
-			message: "TestError 3405834068".to_string(),
-			severity: model::LogLevel::Error,
-			..Default::default()
-		},
-		model::LogEntry {
-			message: "TestWarning 340958349068".to_string(),
-			severity: model::LogLevel::Warning,
-			..Default::default()
-		},
-		model::LogEntry {
-			message: "TestInfo 3049580349568".to_string(),
-			severity: model::LogLevel::Info,
-			..Default::default()
-		},
-		model::LogEntry {
-			message: "TestDebug 0345986045968".to_string(),
-			severity: model::LogLevel::Debug,
-			..Default::default()
-		},
-		model::LogEntry {
-			message: "TestTrace 309468456".to_string(),
-			severity: model::LogLevel::Trace,
-			..Default::default()
-		},
-	];
-
-	//Vec::<model::LogEntry>::new()
-	let log_source_ex = model::LogSource {
-		name: "example".to_string(),
-		children: { model::LogSourceContents::Entries(log_entries) },
-	};
-	let log_source_ex2_1 = model::LogSource {
-		name: "example2_1".to_string(),
-		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-	};
-	let log_source_ex2 = model::LogSource {
-		name: "example2".to_string(),
-		children: { model::LogSourceContents::Sources(vec![log_source_ex2_1]) },
-	};
-	let log_source_ex3 = model::LogSource {
-		name: "example3".to_string(),
-		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-	};
-	let log_source_ex4_1 = model::LogSource {
-		name: "example4_1".to_string(),
-		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-	};
-	let log_source_ex4_2 = model::LogSource {
-		name: "example4_2".to_string(),
-		children: { model::LogSourceContents::Entries(Vec::<model::LogEntry>::new()) },
-	};
-	let log_source_ex4 = model::LogSource {
-		name: "example4".to_string(),
-		children: { model::LogSourceContents::Sources(vec![log_source_ex4_1, log_source_ex4_2]) },
-	};
-
-	let log_source_root = model::LogSource {
-		name: "Root LogSource".to_string(),
-		children: {
-			model::LogSourceContents::Sources(vec![
-				log_source_ex,
-				log_source_ex2,
-				log_source_ex3,
-				log_source_ex4,
-			])
-		},
-	};
-
-	//---------------------------------------------------------------------------------------
-
-	let mut dialog_vec: Vec<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
-
-	let log_source_root = if let Some(file_path) = file_path {
-		let now = Instant::now();
-		let root = parse::from_file(file_path);
-		let elapsed = now.elapsed();
-		log::info!(
-			"Time to parse file: {}ms",
-			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-		);
-
-		match root {
-			Ok(root) => root,
-			Err(err) => {
-				let error_str = format!("Error: {}", err);
-				dialog_vec.push(gtk::MessageDialog::new(
-					Some(&window),
-					gtk::DialogFlags::empty(),
-					gtk::MessageType::Error,
-					gtk::ButtonsType::Ok,
-					&error_str,
-				));
-				log_source_root
-			}
-		}
-	} else {
-		log_source_root
-	};
 
 	// Create log store as Refcounted RefCell to be used in closures ------------------------
 
@@ -1158,15 +1231,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_toggle, false);
-			gtk::prelude::TreeViewColumnExt::add_attribute(
-				&column,
-				&renderer_toggle,
-				"active",
-				LogSourcesColumns::Active as i32,
-			);
-			gtk::prelude::TreeViewColumnExt::add_attribute(
-				&column,
+			column.pack_start(&renderer_toggle, false);
+			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
+			column.add_attribute(
 				&renderer_toggle,
 				"inconsistent",
 				LogSourcesColumns::Inconsistent as i32,
@@ -1176,13 +1243,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		{
 			let renderer_text = CellRendererText::new();
 			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
-			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_text, false);
-			gtk::prelude::TreeViewColumnExt::add_attribute(
-				&column,
-				&renderer_text,
-				"text",
-				LogSourcesColumns::Text as i32,
-			);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
 		}
 
 		{
@@ -1218,13 +1280,8 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		{
 			let renderer_text = CellRendererText::new();
 			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
-			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_text, false);
-			gtk::prelude::TreeViewColumnExt::add_attribute(
-				&column,
-				&renderer_text,
-				"text",
-				LogSourcesColumns::ChildCount as i32,
-			);
+			column.pack_start(&renderer_text, false);
+			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
 		}
 		sources_tree_view.append_column(&column);
 	}
@@ -1501,47 +1558,32 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
 	let f_clone_1 = store_rc.clone();
-	drawing_area.connect_event(move |drawing_area, evt| {
-		handle_evt(&mut f_clone_1.borrow_mut(), drawing_area, evt)
-	});
+	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.borrow_mut(), x, y));
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
 
 	// https://gtk-rs.org/docs/gtk/trait.WidgetExt.html
 	let f_clone_2 = store_rc.clone();
-	drawing_area.connect_draw(move |drawing_area, ctx| {
-		draw(
-			&mut f_clone_2.borrow_mut(),
-			drawing_area,
-			ctx,
-			preferred_font,
-		)
-	});
+	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.borrow_mut(), x, y));
 
 	let f_clone_3 = store_rc.clone();
-	drawing_area.connect_scroll_event(move |drawing_area, evt| {
-		handle_evt_scroll(&mut f_clone_3.borrow_mut(), drawing_area, evt)
-	});
+	drawing_area
+		.connect_scroll_event(move |x, y| handle_evt_scroll(&mut f_clone_3.borrow_mut(), x, y));
 
 	let f_clone_4 = store_rc.clone();
-	drawing_area.connect_button_press_event(move |drawing_area, evt| {
-		handle_evt_press(&mut f_clone_4.borrow_mut(), drawing_area, evt)
+	drawing_area.connect_button_press_event(move |x, y| {
+		handle_evt_press(&mut f_clone_4.borrow_mut(), x, y)
 	});
 
 	let f_clone_5 = store_rc.clone();
-	drawing_area.connect_button_release_event(move |drawing_area, evt| {
-		handle_evt_release(&mut f_clone_5.borrow_mut(), drawing_area, evt)
+	drawing_area.connect_button_release_event(move |x, y| {
+		handle_evt_release(&mut f_clone_5.borrow_mut(), x, y)
 	});
 
 	let f_clone_6 = store_rc.clone();
-	drawing_area.connect_motion_notify_event(move |drawing_area, evt| {
-		handle_evt_motion(
-			&mut f_clone_6.borrow_mut(),
-			&timediff_entry.clone(),
-			drawing_area,
-			evt,
-		)
+	drawing_area.connect_motion_notify_event(move |x, y| {
+		handle_evt_motion(&mut f_clone_6.borrow_mut(), &timediff_entry.clone(), x, y)
 	});
 
 	split_pane.pack2(&drawing_area, true, false);
