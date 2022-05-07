@@ -9,11 +9,11 @@ use gtk::{gdk, gio, glib};
 #[allow(unused_imports)]
 use gtk::{
 	glib::clone, glib::MainContext, glib::PRIORITY_DEFAULT, Align, Application, ApplicationWindow,
-	Button, Frame, Label, MessageDialog, Notebook, Spinner,
+	Button, Frame, Label, MessageDialog, Notebook, Spinner, Widget,
 };
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -141,13 +141,65 @@ impl GlobalGuiModel {
 	}
 }
 
+pub type Pageid = u32;
+
+struct GuiPage {
+	id: Pageid,
+	widget: Widget,
+}
+
 struct GuiModel {
 	notebook: Notebook,
+	next_page_id: Pageid,
+	pages: Vec<GuiPage>,
 }
 
 impl GuiModel {
 	fn new(notebook: Notebook) -> GuiModel {
-		GuiModel { notebook }
+		GuiModel {
+			notebook,
+			next_page_id: 1,
+			pages: Vec::<GuiPage>::new(),
+		}
+	}
+	fn add_page(&mut self) -> Pageid {
+		let spinner = Spinner::builder()
+			.width_request(50)
+			.height_request(50)
+			.vexpand(false)
+			.hexpand(false)
+			.halign(Align::Center)
+			.valign(Align::Center)
+			.build();
+		spinner.start();
+
+		let label = Label::new(Some("GuiModel created"));
+		let id = self.next_page_id;
+		self.next_page_id = self
+			.next_page_id
+			.checked_add(1)
+			.expect("Too many tabs, id counter overflow");
+
+		self.pages.push(GuiPage {
+			id,
+			widget: spinner.clone().upcast::<Widget>(),
+		});
+
+		self.notebook.append_page(&spinner, Some(&label));
+		self.notebook.set_tab_reorderable(&spinner, true);
+
+		id
+	}
+	fn remove_page(&mut self, id: Pageid) {
+		for page in &self.pages {
+			if page.id == id {
+				self.notebook.remove_page(Some(
+					self.notebook
+						.page_num(&page.widget)
+						.expect("Bug in page managing code"),
+				));
+			}
+		}
 	}
 }
 
@@ -261,148 +313,61 @@ fn build_ui(
 		app.add_action(&about);
 	}
 
-	let mut dialog_vec: Vec<MessageDialog> = Vec::<MessageDialog>::new();
-	/*
-	log::info!("File paths: {:?}", file_paths);
-	let log_source_root = if !file_paths.is_empty() {
-		if file_paths.len() > 1 {
-			log::warn!("Multiple files opened, ignoring all but the first one.");
-		}
-
-		let now = Instant::now();
-		let root = parse::from_file(&file_paths[0]);
-		let elapsed = now.elapsed();
-		log::info!(
-			"Time to parse file: {}ms",
-			elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
-		);
-
-		match root {
-			Ok(root) => root,
-			Err(err) => {
-				let error_str = format!("Error: {}", err);
-				dialog_vec.push(gtk::MessageDialog::new(
-					Some(&window),
-					gtk::DialogFlags::empty(),
-					gtk::MessageType::Error,
-					gtk::ButtonsType::Ok,
-					&error_str,
-				));
-				log_source_root
-			}
-		}
-	} else {
-		log_source_root
-	};*/
-
 	let notebook = Notebook::builder().show_border(false).build();
-
 	let gui_model = Rc::new(RefCell::new(GuiModel::new(notebook.clone())));
 	*global_gui_model = Some(GlobalGuiModel::new(gui_model.clone()));
 
-	let button = Button::builder()
-		.label("Press me!")
-		.margin_top(12)
-		.margin_bottom(12)
-		.margin_start(12)
-		.margin_end(12)
-		.build();
-
-	let label = Label::new(Some("Foo"));
-
-	notebook.append_page(&button, Some(&label));
-
-	let window_clone = window.clone();
-	/*thread::spawn(move || {
-		let spinner = Spinner::builder()
-		 .width_request(50)
-		 .height_request(50)
-		 .vexpand(false)
-		 .hexpand(false)
-		 .halign(Align::Center)
-		 .valign(Align::Center)
-		 .build();
-	 spinner.start();
-	 //window_clone.set_child(Some(&spinner));
-	 let main_context = MainContext::default();
-	 // The main loop executes the asynchronous block
-	 main_context.spawn_local(clone!(@weak window_clone => async move {
-		 // Deactivate the button until the operation is done
-
-	 }));
-	});*/
-	let window_refcell = Rc::new(RefCell::new(window.clone()));
-	let main_context = MainContext::default();
-	// The main loop executes the asynchronous block
-	main_context.spawn_local(clone!(@weak window_refcell => async move {
-		// Deactivate the button until the operation is done
-
-	}));
-
 	let (sender, receiver) = MainContext::channel(PRIORITY_DEFAULT);
 
-	// The main loop executes the closure as soon as it receives the message
-	/*receiver.attach(
-		None,
-		clone!(@weak window_clone => @default-return Continue(false),
-			move |vector| {
-				println!("{:?}", vector);
-				Continue(true)
-			}
-		),
-	);*/
-
-	let gui_model_rc_clone = gui_model.clone();
-	receiver.attach(None, move |vector| {
-		let foo = gui_model_rc_clone.borrow();
-		let spinner = Spinner::builder()
-			.width_request(50)
-			.height_request(50)
-			.vexpand(false)
-			.hexpand(false)
-			.halign(Align::Center)
-			.valign(Align::Center)
-			.build();
-		spinner.start();
-
-		foo.notebook.append_page(&spinner, Option::<&Label>::None);
-		println!("{:?}", vector);
-		Continue(true)
-	});
-	/*receiver.attach(
-		None,
-		move |vector| {
-			println!("{:?}", vector);
+	{
+		let gui_model = gui_model.clone();
+		receiver.attach(None, move |(page_id, parse_result)| {
+			let mut gui_model = gui_model.borrow_mut();
+			gui_model.remove_page(page_id);
 			Continue(true)
+		});
+	}
+
+	//let mut dialog_vec: Vec<MessageDialog> = Vec::<MessageDialog>::new();
+	/*dialog_vec.push(gtk::MessageDialog::new(
+		Some(&window),
+		gtk::DialogFlags::empty(),
+		gtk::MessageType::Error,
+		gtk::ButtonsType::Ok,
+		&error_str,
+	));*/
+
+	log::info!("File paths: {:?}", file_paths);
+	if !file_paths.is_empty() {
+		// We are handling an open signal and need to open and read files
+
+		for file_path in file_paths {
+			let mut gui_model = gui_model.borrow_mut();
+
+			// Add a loading page to the GUI, it will be filled with
+			// content after parsing is done
+			let page_id = gui_model.add_page();
+
+			let file_path = file_path.clone();
+			let sender = sender.clone();
+			// The long running operation runs now in a separate thread
+			thread::spawn(move || {
+				let now = Instant::now();
+				let parse_result = parse::from_file(&file_path);
+				let elapsed = now.elapsed();
+				log::info!(
+					"Time to parse file [{:?}]: {}ms",
+					&file_path,
+					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+				);
+
+				thread::sleep(Duration::from_secs(3));
+				sender
+					.send((page_id, parse_result))
+					.expect("Could not send through channel");
+			});
 		}
-	);*/
-
-	let sender_clone = sender.clone();
-	// The long running operation runs now in a separate thread
-	thread::spawn(move || {
-		println!("Starting!");
-		thread::sleep(Duration::from_secs(5));
-		println!("sending now!");
-		sender_clone
-			.send(Vec::<bool>::new())
-			.expect("Could not send through channel");
-		println!("sending done!");
-	});
-
-	let spinner = Spinner::builder()
-		.width_request(50)
-		.height_request(50)
-		.vexpand(false)
-		.hexpand(false)
-		.halign(Align::Center)
-		.valign(Align::Center)
-		.build();
-	spinner.start();
-
-	let spinner_clone = spinner.clone();
-
-	notebook.append_page(&spinner, Option::<&Label>::None);
-	notebook.set_tab_reorderable(&spinner, true);
+	}
 
 	// Present window
 	window.set_child(Some(&notebook));
