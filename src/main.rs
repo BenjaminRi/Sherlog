@@ -131,6 +131,16 @@ fn generate_test_log() -> model::LogSource {
 	}
 }
 
+struct GlobalGuiModel {
+	gui_model: Rc<RefCell<GuiModel>>,
+}
+
+impl GlobalGuiModel {
+	fn new(gui_model: Rc<RefCell<GuiModel>>) -> GlobalGuiModel {
+		GlobalGuiModel { gui_model }
+	}
+}
+
 struct GuiModel {
 	notebook: Notebook,
 }
@@ -175,30 +185,27 @@ fn main() {
 		.flags(flags)
 		.build();
 
-	app.connect_startup(|_app| {
-		println!("connect_startup");
-		// The CSS "magic" happens here.
-		let provider = gtk::CssProvider::new();
-		provider.load_from_data(include_bytes!("style.css"));
-		// We give the CssProvided to the default screen so the CSS rules we added
-		// can be applied to our window.
-		gtk::StyleContext::add_provider_for_display(
-			&gtk::gdk::Display::default().expect("Could not connect to a display."),
-			&provider,
-			gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-		);
-		//build_ui(_app, &Vec::new());
-	});
+	let global_gui_model = Rc::new(RefCell::<Option<GlobalGuiModel>>::new(None));
 
-	app.connect_open(move |app, gio_files, _| {
-		println!("connect_open");
-		build_ui(app, &gio_files_to_paths(gio_files));
-	});
+	{
+		let global_gui_model = global_gui_model.clone();
+		app.connect_open(move |app, gio_files, _| {
+			println!("connect_open");
+			build_ui(
+				app,
+				&gio_files_to_paths(gio_files),
+				&mut global_gui_model.borrow_mut(),
+			);
+		});
+	}
 
-	app.connect_activate(|app| {
-		println!("connect_activate");
-		build_ui(app, &Vec::new());
-	});
+	{
+		let global_gui_model = global_gui_model.clone();
+		app.connect_activate(move |app| {
+			println!("connect_activate");
+			build_ui(app, &Vec::new(), &mut global_gui_model.borrow_mut());
+		});
+	}
 
 	//Without NON_UNIQUE:
 	//Process 1
@@ -218,7 +225,24 @@ fn main() {
 	app.run();
 }
 
-fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
+fn apply_hardcoded_stylesheet() {
+	// This is required for Windows, to fix the titlebar look and feel
+	let provider = gtk::CssProvider::new();
+	provider.load_from_data(include_bytes!("style.css"));
+	gtk::StyleContext::add_provider_for_display(
+		&gtk::gdk::Display::default().expect("Could not connect to a display."),
+		&provider,
+		gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+	);
+}
+
+fn build_ui(
+	app: &gtk::Application,
+	file_paths: &[std::path::PathBuf],
+	global_gui_model: &mut std::option::Option<GlobalGuiModel>,
+) {
+	apply_hardcoded_stylesheet();
+
 	let mut window = ApplicationWindow::builder()
 		.application(app)
 		.title("Sherlog")
@@ -274,6 +298,7 @@ fn build_ui(app: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	let notebook = Notebook::builder().show_border(false).build();
 
 	let gui_model = Rc::new(RefCell::new(GuiModel::new(notebook.clone())));
+	*global_gui_model = Some(GlobalGuiModel::new(gui_model.clone()));
 
 	let button = Button::builder()
 		.label("Press me!")
