@@ -228,46 +228,20 @@ impl GuiModel {
 				let left_store = TreeStore::new(&[glib::Type::U32]);
 				let sources_tree_view = TreeView::with_model(&left_store);
 				sources_tree_view.set_headers_visible(true);
-				//gtkbox.append(&sources_tree_view);
-				/*let new_parent = left_store.insert_with_values(
+				gtkbox.append(&sources_tree_view);
+				let new_parent = left_store.insert_with_values(
 					None,
 					None,
 					&[
 						(0, &55),
 					],
-				);*/
-				let now = Instant::now();
-				let num_elems = 30000;
-				for i in 1..num_elems {
-					left_store.insert(None, -1);
-				}
-				let elapsed = now.elapsed();
-				log::info!(
-					"Time to iterate {}ms",
-					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 				);
-
-				let now = Instant::now();
-
-				/*let mut it = left_store.iter_first().unwrap();
-				loop {
-					if left_store.iter_next(&it) {
-						left_store.set_value(&it, 0, &42.to_value());
-					} else {
-						break;
-					}
-				}*/
-
-				let lsc = left_store.clone();
-				left_store.foreach(|model, path, iter| {
-					lsc.set_value(&iter, 0, &42.to_value());
-					false
-				});
-
-				let elapsed = now.elapsed();
-				log::info!(
-					"Time to iterate {}ms",
-					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+				let new_parent = left_store.insert_with_values(
+					Some(&new_parent),
+					None,
+					&[
+						(0, &56),
+					],
 				);
 
 				//Column with number of entries of a log source
