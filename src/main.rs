@@ -8,9 +8,11 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 #[allow(unused_imports)]
 use gtk::{
-	glib::clone, glib::MainContext, glib::PRIORITY_DEFAULT, Align, Application, ApplicationWindow,
-	Button, Frame, Label, MessageDialog, Notebook, Spinner, Widget,
+	Align, Application, ApplicationWindow, Box, Button, CellRendererText, Frame, Label,
+	MessageDialog, Notebook, Orientation, Spinner, TreeStore, TreeView, Widget,
 };
+
+use glib::{clone, MainContext, PRIORITY_DEFAULT};
 
 use std::thread;
 use std::time::{Duration, Instant};
@@ -22,6 +24,8 @@ mod log_store;
 mod model;
 mod model_internal;
 mod parse;
+
+use parse::io::LogParseError;
 
 use log_store::LogStoreLinear;
 use log_store::ScrollBarVert;
@@ -163,6 +167,11 @@ impl GuiModel {
 		}
 	}
 	fn add_page(&mut self) -> Pageid {
+		let gtkbox = Box::builder()
+			.halign(Align::Center)
+			.valign(Align::Center)
+			.build();
+
 		let spinner = Spinner::builder()
 			.width_request(50)
 			.height_request(50)
@@ -173,6 +182,8 @@ impl GuiModel {
 			.build();
 		spinner.start();
 
+		gtkbox.append(&spinner);
+
 		let label = Label::new(Some("GuiModel created"));
 		let id = self.next_page_id;
 		self.next_page_id = self
@@ -182,11 +193,11 @@ impl GuiModel {
 
 		self.pages.push(GuiPage {
 			id,
-			widget: spinner.clone().upcast::<Widget>(),
+			widget: gtkbox.clone().upcast::<Widget>(),
 		});
 
-		self.notebook.append_page(&spinner, Some(&label));
-		self.notebook.set_tab_reorderable(&spinner, true);
+		self.notebook.append_page(&gtkbox, Some(&label));
+		self.notebook.set_tab_reorderable(&gtkbox, true);
 
 		id
 	}
@@ -198,6 +209,86 @@ impl GuiModel {
 						.page_num(&page.widget)
 						.expect("Bug in page managing code"),
 				));
+			}
+		}
+	}
+	fn populate_page(&mut self, id: Pageid, parse_result: Result<model::LogSource, LogParseError>) {
+		for page in &self.pages {
+			if page.id == id {
+				let gtkbox = page
+					.widget
+					.clone()
+					.downcast::<Box>()
+					.expect("Bug in GTK page handling");
+				gtkbox.remove(&gtkbox.first_child().expect("Bug in GTK box"));
+				gtkbox.set_halign(Align::Fill);
+				gtkbox.set_valign(Align::Fill);
+
+				// left pane
+				let left_store = TreeStore::new(&[glib::Type::U32]);
+				let sources_tree_view = TreeView::with_model(&left_store);
+				sources_tree_view.set_headers_visible(true);
+				//gtkbox.append(&sources_tree_view);
+				/*let new_parent = left_store.insert_with_values(
+					None,
+					None,
+					&[
+						(0, &55),
+					],
+				);*/
+				let now = Instant::now();
+				let num_elems = 30000;
+				for i in 1..num_elems {
+					left_store.insert(None, -1);
+				}
+				let elapsed = now.elapsed();
+				log::info!(
+					"Time to iterate {}ms",
+					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+				);
+
+				let now = Instant::now();
+
+				/*let mut it = left_store.iter_first().unwrap();
+				loop {
+					if left_store.iter_next(&it) {
+						left_store.set_value(&it, 0, &42.to_value());
+					} else {
+						break;
+					}
+				}*/
+
+				let lsc = left_store.clone();
+				left_store.foreach(|model, path, iter| {
+					lsc.set_value(&iter, 0, &42.to_value());
+					false
+				});
+
+				let elapsed = now.elapsed();
+				log::info!(
+					"Time to iterate {}ms",
+					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
+				);
+
+				//Column with number of entries of a log source
+				{
+					let column = gtk::TreeViewColumn::new();
+					column.set_title("Entries");
+					//column.set_sort_indicator(true);
+					//column.set_clickable(true);
+					//column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
+
+					{
+						let renderer_text = CellRendererText::new();
+						gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
+						column.pack_start(&renderer_text, false);
+						column.add_attribute(&renderer_text, "text", 0);
+					}
+					sources_tree_view.append_column(&column);
+				}
+
+				let label = Label::new(Some("Populating"));
+				gtkbox.append(&label);
 			}
 		}
 	}
@@ -322,8 +413,9 @@ fn build_ui(
 	{
 		let gui_model = gui_model.clone();
 		receiver.attach(None, move |(page_id, parse_result)| {
+			log::info!("Parsing done signal");
 			let mut gui_model = gui_model.borrow_mut();
-			gui_model.remove_page(page_id);
+			gui_model.populate_page(page_id, parse_result);
 			Continue(true)
 		});
 	}
@@ -350,10 +442,14 @@ fn build_ui(
 
 			let file_path = file_path.clone();
 			let sender = sender.clone();
-			// The long running operation runs now in a separate thread
+
 			thread::spawn(move || {
 				let now = Instant::now();
+
+				// Parsing is potentially long running, this is why
+				// it is running in a separate thread here
 				let parse_result = parse::from_file(&file_path);
+
 				let elapsed = now.elapsed();
 				log::info!(
 					"Time to parse file [{:?}]: {}ms",
@@ -361,7 +457,7 @@ fn build_ui(
 					elapsed.as_secs() * 1000 + elapsed.subsec_millis() as u64
 				);
 
-				thread::sleep(Duration::from_secs(3));
+				thread::sleep(Duration::from_secs(1));
 				sender
 					.send((page_id, parse_result))
 					.expect("Could not send through channel");
