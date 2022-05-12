@@ -8,8 +8,8 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 #[allow(unused_imports)]
 use gtk::{
-	Align, Application, ApplicationWindow, Box, Button, CellRendererText, Frame, Label,
-	MessageDialog, Notebook, Orientation, Spinner, TreeStore, TreeView, Widget,
+	Align, Application, ApplicationWindow, Box, Button, CellRendererText, Frame, Label, ListView,
+	MessageDialog, Notebook, Orientation, Spinner, TreeListModel, TreeStore, TreeView, Widget,
 };
 
 use glib::{clone, MainContext, PRIORITY_DEFAULT};
@@ -224,42 +224,56 @@ impl GuiModel {
 				gtkbox.set_halign(Align::Fill);
 				gtkbox.set_valign(Align::Fill);
 
-				// left pane
-				let left_store = TreeStore::new(&[glib::Type::U32]);
-				let sources_tree_view = TreeView::with_model(&left_store);
-				sources_tree_view.set_headers_visible(true);
-				gtkbox.append(&sources_tree_view);
-				let new_parent = left_store.insert_with_values(
-					None,
-					None,
-					&[
-						(0, &55),
-					],
-				);
-				let new_parent = left_store.insert_with_values(
-					Some(&new_parent),
-					None,
-					&[
-						(0, &56),
-					],
-				);
-
-				//Column with number of entries of a log source
-				{
-					let column = gtk::TreeViewColumn::new();
-					column.set_title("Entries");
-					//column.set_sort_indicator(true);
-					//column.set_clickable(true);
-					//column.set_sort_column_id(LogSourcesColumns::ChildCount as i32);
-
-					{
-						let renderer_text = CellRendererText::new();
-						gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
-						column.pack_start(&renderer_text, false);
-						column.add_attribute(&renderer_text, "text", 0);
-					}
-					sources_tree_view.append_column(&column);
+				let sl = gtk::StringList::new(&[]);
+				for x in 0..5000000 {
+					sl.append(&format!("String{}", x));
 				}
+
+				let slif = gtk::SignalListItemFactory::new();
+
+				slif.connect_setup(|slif, li| {
+					let b = gtk::Button::new();
+					li.set_child(Some(&b))
+				});
+				let itemx = gtk::PropertyExpression::new(
+					gtk::ListItem::static_type(),
+					gtk::Expression::NONE,
+					"item",
+				);
+				let stringx = gtk::PropertyExpression::new(
+					gtk::StringObject::static_type(),
+					Some(&itemx),
+					"string",
+				);
+				slif.connect_bind(move |slif, li| {
+					let string = li
+						.item()
+						.unwrap()
+						.downcast::<gtk::StringObject>()
+						.unwrap()
+						.string();
+					let string_via_expression =
+						stringx.evaluate(Some(li)).unwrap().get::<String>().unwrap();
+					assert_eq!(string, string_via_expression);
+
+					li.child()
+						.unwrap()
+						.downcast::<gtk::Button>()
+						.unwrap()
+						.set_label(string.as_str());
+				});
+
+				let s = gtk::NoSelection::new(Some(&sl)); //SingleSelection, NoSelection, MultiSelection
+
+				let listview = ListView::builder().model(&s).factory(&slif).build();
+
+				let scroll = gtk::ScrolledWindow::builder()
+					.child(&listview)
+					.overlay_scrolling(false)
+					.min_content_width(200)
+					.build();
+
+				gtkbox.append(&scroll);
 
 				let label = Label::new(Some("Populating"));
 				gtkbox.append(&label);
