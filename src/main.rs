@@ -8,8 +8,9 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 #[allow(unused_imports)]
 use gtk::{
-	Align, Application, ApplicationWindow, Box, Button, CellRendererText, Frame, Label, ListView,
-	MessageDialog, Notebook, Orientation, Spinner, TreeListModel, TreeStore, TreeView, Widget,
+	Align, Application, ApplicationWindow, Box, Button, CellRendererText, EventControllerScroll,
+	EventControllerScrollFlags, Frame, Label, ListView, MessageDialog, Notebook, Orientation,
+	ScrolledWindow, Spinner, TreeListModel, TreeStore, TreeView, Widget,
 };
 
 use glib::{clone, MainContext, PRIORITY_DEFAULT};
@@ -225,7 +226,8 @@ impl GuiModel {
 				gtkbox.set_valign(Align::Fill);
 
 				let sl = gtk::StringList::new(&[]);
-				for x in 0..5000000 {
+				for x in 0..10000 {
+					//5_000_000
 					sl.append(&format!("String{}", x));
 				}
 
@@ -267,11 +269,40 @@ impl GuiModel {
 
 				let listview = ListView::builder().model(&s).factory(&slif).build();
 
-				let scroll = gtk::ScrolledWindow::builder()
+				let scroll = ScrolledWindow::builder()
 					.child(&listview)
 					.overlay_scrolling(false)
 					.min_content_width(200)
 					.build();
+
+				let controller = EventControllerScroll::builder()
+					.flags(EventControllerScrollFlags::VERTICAL)
+					.build();
+
+				let scroll_clone = scroll.clone();
+				let last_frame_counter = Rc::new(RefCell::new(0));
+				controller.connect_scroll(move |_, dx, dy| {
+					let mut last_frame_counter = last_frame_counter.borrow_mut();
+					let now = Instant::now();
+					let new_frame_counter = scroll_clone.frame_clock().unwrap().frame_counter();
+					println!(
+						"Scroll: {:?} {}, {} ({:?}) ({:?})",
+						now,
+						dx,
+						dy,
+						new_frame_counter,
+						scroll_clone.vadjustment().value()
+					);
+					if *last_frame_counter == new_frame_counter {
+						println!("Inhibited!");
+						gtk::Inhibit(true)
+					} else {
+						*last_frame_counter = new_frame_counter;
+						gtk::Inhibit(false)
+					}
+				});
+
+				scroll.add_controller(&controller);
 
 				gtkbox.append(&scroll);
 
@@ -281,6 +312,48 @@ impl GuiModel {
 		}
 	}
 }
+
+/*Scroll: Instant { t: 6884.4772108s } 0, 1 (1050) (196325.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.4799927s } 0, 1 (1050) (196325.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.4829862s } 0, 1 (1050) (196325.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.4915749s } 0, 1 (1051) (196325.0)
+Scroll: Instant { t: 6884.4957788s } 0, 1 (1051) (196380.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.4999516s } 0, 1 (1051) (196380.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.506177s } 0, 1 (1052) (196380.0)
+Scroll: Instant { t: 6884.5116088s } 0, 1 (1052) (196435.5478039555)
+Inhibited!
+
+(sherlog.exe:16812): Gtk-WARNING **: 20:26:23.725: GtkListView failed to scroll to given position. Ignoring...
+Scroll: Instant { t: 6884.7352692s } 0, 1 (1065) (196808.0)
+Scroll: Instant { t: 6884.755972s } 0, 1 (1067) (196863.0)
+Scroll: Instant { t: 6884.7584715s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7598294s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7642249s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7662624s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7702319s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7720778s } 0, 1 (1067) (196918.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7760662s } 0, 1 (1068) (196918.0)
+Scroll: Instant { t: 6884.7788259s } 0, 1 (1068) (196973.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7828175s } 0, 1 (1068) (196973.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7858359s } 0, 1 (1068) (196973.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.7940174s } 0, 1 (1069) (196973.0)
+Scroll: Instant { t: 6884.7955547s } 0, 1 (1069) (197028.5478039555)
+Inhibited!
+Scroll: Instant { t: 6884.8012353s } 0, 1 (1069) (197028.5478039555)*/
 
 fn main() {
 	fern::Dispatch::new()
