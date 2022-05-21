@@ -261,7 +261,7 @@ impl GuiModel {
 				gtkbox.set_valign(Align::Fill);
 
 				let sl = gtk::StringList::new(&[]);
-				for x in 0..10000 {
+				for x in 0..290 {
 					//5_000_000
 					sl.append(&format!("String{}", x));
 				}
@@ -298,6 +298,15 @@ impl GuiModel {
 						.downcast::<gtk::Button>()
 						.unwrap()
 						.set_label(string.as_str());
+					
+					
+					if string == "String250" {
+						li.child()
+							.unwrap()
+							.downcast::<gtk::Button>()
+							.unwrap()
+							.set_height_request(10000)
+					}
 				});
 
 				let s = gtk::NoSelection::new(Some(&sl)); //SingleSelection, NoSelection, MultiSelection
