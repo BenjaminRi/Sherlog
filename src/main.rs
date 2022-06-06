@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
+use gio::{ListModel, ListStore};
 use gtk::prelude::*;
 #[allow(unused_imports)]
 use gtk::{gdk, gio, glib};
@@ -260,56 +261,80 @@ impl GuiModel {
 				gtkbox.set_halign(Align::Fill);
 				gtkbox.set_valign(Align::Fill);
 
-				let sl = gtk::StringList::new(&[]);
+				/*let sl = gtk::StringList::new(&[]);
 				for x in 0..290 {
 					//5_000_000
-					sl.append(&format!("String{}", x));
+					sl.append(&format!("String{}", x)); //GtkStringObject
+				}*/
+				let sl = ListStore::new(glib::Type::OBJECT);
+				for x in 0..290 {
+					sl.append(&gtk::StringObject::new(&format!("String{}", x)));
 				}
 
 				let slif = gtk::SignalListItemFactory::new();
 
-				slif.connect_setup(|slif, li| {
+				slif.connect_setup(|slif, list_item| {
 					let b = gtk::Button::new();
-					li.set_child(Some(&b))
+					let expander = gtk::TreeExpander::new();
+					expander.set_child(Some(&b));
+					list_item.set_child(Some(&expander));
 				});
-				let itemx = gtk::PropertyExpression::new(
-					gtk::ListItem::static_type(),
-					gtk::Expression::NONE,
-					"item",
-				);
-				let stringx = gtk::PropertyExpression::new(
-					gtk::StringObject::static_type(),
-					Some(&itemx),
-					"string",
-				);
-				slif.connect_bind(move |slif, li| {
-					let string = li
+
+				slif.connect_bind(move |slif, list_item| {
+					//println!("{:?}", list_item.item().unwrap().type_());
+					let row = list_item
+						.item()
+						.unwrap()
+						.downcast::<gtk::TreeListRow>()
+						.unwrap();
+					let row_expander = list_item
+						.child()
+						.unwrap()
+						.downcast::<gtk::TreeExpander>()
+						.unwrap();
+					row_expander.set_list_row(Some(&row));
+
+					let string = list_item
+						.item()
+						.unwrap()
+						.downcast::<gtk::TreeListRow>()
+						.unwrap()
 						.item()
 						.unwrap()
 						.downcast::<gtk::StringObject>()
 						.unwrap()
 						.string();
-					let string_via_expression =
-						stringx.evaluate(Some(li)).unwrap().get::<String>().unwrap();
-					assert_eq!(string, string_via_expression);
 
-					li.child()
+					list_item
+						.child()
+						.unwrap()
+						.downcast::<gtk::TreeExpander>()
+						.unwrap()
+						.child()
 						.unwrap()
 						.downcast::<gtk::Button>()
 						.unwrap()
 						.set_label(string.as_str());
-					
-					
-					if string == "String250" {
-						li.child()
-							.unwrap()
-							.downcast::<gtk::Button>()
-							.unwrap()
-							.set_height_request(10000)
-					}
 				});
 
-				let s = gtk::NoSelection::new(Some(&sl)); //SingleSelection, NoSelection, MultiSelection
+				let tlm = TreeListModel::new(&sl, false, false, |list_item| {
+					let s2 = gtk::StringList::new(&[]);
+					println!(
+						"Create model {}",
+						list_item
+							.clone()
+							.downcast::<gtk::StringObject>()
+							.unwrap()
+							.string()
+					);
+					for x in 0..100 {
+						s2.append(&format!("AAA{}", x));
+					}
+					Some(s2.upcast::<ListModel>())
+					//None
+				});
+
+				let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
 
 				let listview = ListView::builder().model(&s).factory(&slif).build();
 
