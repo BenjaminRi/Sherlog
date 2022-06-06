@@ -336,10 +336,17 @@ impl GuiModel {
 
 				let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
 
-				let listview = ListView::builder().model(&s).factory(&slif).build();
+				let columnview = gtk::ColumnView::builder().model(&s).build();
+				let column = gtk::ColumnViewColumn::builder()
+					.title("Test")
+					.factory(&slif)
+					.build();
+				columnview.append_column(&column);
+
+				//let listview = ListView::builder().model(&s).factory(&slif).build();
 
 				let scroll = ScrolledWindow::builder()
-					.child(&listview)
+					.child(&columnview)
 					.overlay_scrolling(false)
 					.min_content_width(200)
 					.build();
