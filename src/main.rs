@@ -36,6 +36,10 @@ use model_internal::LogEntryExt;
 use model_internal::LogSourceContentsExt;
 use model_internal::LogSourceExt;
 
+//<kervo[m]> You can simply remove the stupid default cell padding `columnview listview cell { padding: 0px;}`
+//<Company> gtk_widget_set_css_class (columnview, "data-table") is one way
+//<Company> apparently our designs say that the default columnview is not for data tables
+
 fn gio_files_to_paths(gio_files: &[gio::File]) -> Vec<std::path::PathBuf> {
 	let mut result = Vec::new();
 	for gio_file in gio_files {
@@ -336,14 +340,18 @@ impl GuiModel {
 
 				let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
 
-				let columnview = gtk::ColumnView::builder().model(&s).build();
+				let columnview = gtk::ColumnView::builder()
+					.model(&s)
+					.show_row_separators(false)
+					.build();
 				let column = gtk::ColumnViewColumn::builder()
 					.title("Test")
 					.factory(&slif)
 					.build();
 				columnview.append_column(&column);
+				columnview.add_css_class("data-table");
 
-				//let listview = ListView::builder().model(&s).factory(&slif).build();
+				let listview = ListView::builder().model(&s).factory(&slif).build();
 
 				let scroll = ScrolledWindow::builder()
 					.child(&columnview)
