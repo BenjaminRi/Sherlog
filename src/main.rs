@@ -265,15 +265,15 @@ impl GuiModel {
 				gtkbox.set_halign(Align::Fill);
 				gtkbox.set_valign(Align::Fill);
 
-				/*let sl = gtk::StringList::new(&[]);
+				let sl = gtk::StringList::new(&[]);
 				for x in 0..290 {
 					//5_000_000
 					sl.append(&format!("String{}", x)); //GtkStringObject
-				}*/
-				let sl = ListStore::new(glib::Type::OBJECT);
+				}
+				/*let sl = ListStore::new(glib::Type::OBJECT);
 				for x in 0..290 {
 					sl.append(&gtk::StringObject::new(&format!("String{}", x)));
-				}
+				}*/
 
 				let slif = gtk::SignalListItemFactory::new();
 
@@ -283,6 +283,22 @@ impl GuiModel {
 					expander.set_child(Some(&b));
 					list_item.set_child(Some(&expander));
 				});
+
+				let itemx = gtk::PropertyExpression::new(
+					gtk::ListItem::static_type(),
+					gtk::Expression::NONE,
+					"item",
+				);
+				let tlrowx = gtk::PropertyExpression::new(
+					gtk::TreeListRow::static_type(),
+					Some(&itemx),
+					"item",
+				);
+				let stringx = gtk::PropertyExpression::new(
+					gtk::StringObject::static_type(),
+					Some(&tlrowx),
+					"string",
+				);
 
 				slif.connect_bind(move |slif, list_item| {
 					//println!("{:?}", list_item.item().unwrap().type_());
@@ -309,6 +325,25 @@ impl GuiModel {
 						.unwrap()
 						.string();
 
+					/*for pspec in list_item
+						.list_properties()
+						.as_slice() {
+						println!("yyyyyyyyyyyyyyyyyy {:?} {:?}", pspec.name(), pspec.value_type());
+					}
+					for pspec in list_item
+						.item()
+						.unwrap()
+						.downcast::<gtk::TreeListRow>()
+						.unwrap()
+						.list_properties()
+						.as_slice() {
+						println!("xxxxxxxxxxxxxxxxxx {:?} {:?}", pspec.name(), pspec.value_type());
+					}*/
+
+					let string_via_expression = stringx.evaluate(Some(list_item)).unwrap();
+					let string_via_expression = string_via_expression.get::<String>().unwrap();
+					assert_eq!(string, string_via_expression);
+
 					list_item
 						.child()
 						.unwrap()
@@ -322,7 +357,7 @@ impl GuiModel {
 				});
 
 				let tlm = TreeListModel::new(&sl, false, false, |list_item| {
-					let s2 = gtk::StringList::new(&[]);
+					/*let s2 = gtk::StringList::new(&[]);
 					println!(
 						"Create model {}",
 						list_item
@@ -334,24 +369,34 @@ impl GuiModel {
 					for x in 0..100 {
 						s2.append(&format!("AAA{}", x));
 					}
-					Some(s2.upcast::<ListModel>())
-					//None
+					Some(s2.upcast::<ListModel>())*/
+					None
 				});
 
-				let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
+				let columnview = gtk::ColumnView::new(Option::<&gtk::NoSelection>::None);
 
-				let columnview = gtk::ColumnView::builder()
-					.model(&s)
-					.show_row_separators(false)
-					.build();
 				let column = gtk::ColumnViewColumn::builder()
 					.title("Test")
 					.factory(&slif)
 					.build();
+
+				let stringx = gtk::PropertyExpression::new(
+					gtk::StringObject::static_type(),
+					gtk::Expression::NONE,
+					"string",
+				);
+
+				column.set_sorter(Some(&gtk::StringSorter::new(Some(&stringx))));
 				columnview.append_column(&column);
 				columnview.add_css_class("data-table");
 
-				let listview = ListView::builder().model(&s).factory(&slif).build();
+				let sorter = columnview.sorter().unwrap();
+				let tree_sorter = gtk::TreeListRowSorter::new(Some(&sorter));
+				let sort_model = gtk::SortListModel::new(Some(&tlm), Some(&tree_sorter));
+				columnview.set_model(Some(&gtk::NoSelection::new(Some(&sort_model))));
+
+				//let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
+				//let listview = ListView::builder().model(&s).factory(&slif).build();
 
 				let scroll = ScrolledWindow::builder()
 					.child(&columnview)
