@@ -357,7 +357,7 @@ impl GuiModel {
 				});
 
 				let tlm = TreeListModel::new(&sl, false, false, |list_item| {
-					/*let s2 = gtk::StringList::new(&[]);
+					let s2 = gtk::StringList::new(&[]);
 					println!(
 						"Create model {}",
 						list_item
@@ -369,8 +369,8 @@ impl GuiModel {
 					for x in 0..100 {
 						s2.append(&format!("AAA{}", x));
 					}
-					Some(s2.upcast::<ListModel>())*/
-					None
+					Some(s2.upcast::<ListModel>())
+					//None
 				});
 
 				let columnview = gtk::ColumnView::new(Option::<&gtk::NoSelection>::None);
