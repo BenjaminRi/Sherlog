@@ -261,7 +261,7 @@ impl GuiModel {
 					.clone()
 					.downcast::<Box>()
 					.expect("Bug in GTK page handling");
-				gtkbox.remove(&gtkbox.first_child().expect("Bug in GTK box"));
+				gtkbox.remove(&gtkbox.first_child().expect("Bug in GTK box")); // Remove loading spinner
 				gtkbox.set_halign(Align::Fill);
 				gtkbox.set_valign(Align::Fill);
 
