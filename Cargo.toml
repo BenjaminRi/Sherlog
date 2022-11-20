@@ -9,7 +9,7 @@ keywords = ["visualization", "log", "analyzer", "debug-tool"]
 categories = ["visualization", "parser-implementations"]
 repository = "https://github.com/BenjaminRi/Sherlog/"
 
-[package.metadata.winres]
+[package.metadata.winresource]
 ProductName = "Sherlog"
 OriginalFilename = "sherlog.exe"
 LegalCopyright = "Copyright © 2020 Benjamin Richner"
@@ -22,4 +22,4 @@ chrono = "0.4.19"
 regex = "1.5.4"
 zip = { version = "0.5.9", features = ["deflate"], default-features = false }
 [target.'cfg(windows)'.build-dependencies]
-winres = "0.1.12"
+winresource = "0.1"

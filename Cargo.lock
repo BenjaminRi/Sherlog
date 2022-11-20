@@ -642,7 +642,7 @@ dependencies = [
  "gtk",
  "log",
  "regex",
- "winres",
+ "winresource",
  "zip",
 ]
 
@@ -775,12 +775,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
-name = "winres"
+name = "winresource"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b68db261ef59e9e52806f688020631e987592bd83619edccda9c47d42cde4f6c"
+checksum = "37cfc1fed7ee3f453d8413a47e6aba55d097840509d72bbd3077262cf218a3ff"
 dependencies = [
  "toml",
+ "version_check",
 ]
 
 [[package]]
