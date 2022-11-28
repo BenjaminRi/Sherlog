@@ -16,7 +16,17 @@ The parsers are done, the GUI is functional, albeit minimal, and has been in dai
 
 ### Windows
 
-If you haven't already installed Rust, it is recommended to do so via `rustup-init.exe`, which can be downloaded on the [official Rust website](https://www.rust-lang.org/tools/install). Select the GNU toolchain `x86_64-pc-windows-gnu` (where `x86_64` is the architecture of your computer, adjust if necessary) by entering it as the *default host triple*. You can either specify this during the initial installation, or change it later via `rustup` by installing the toolchain with `rustup toolchain install stable-x86_64-pc-windows-gnu` and then selecting it with `rustup default stable-x86_64-pc-windows-gnu`.
+If you haven't already installed Rust, it is recommended to do so via `rustup-init.exe`, which can be downloaded on the [official Rust website](https://www.rust-lang.org/tools/install). Select the GNU toolchain `x86_64-pc-windows-gnu` (where `x86_64` is the architecture of your computer, adjust if necessary) by entering it as the *default host triple*. You can either specify this during the initial installation, or change it later via `rustup` by installing the toolchain with
+
+```sh
+rustup toolchain install stable-x86_64-pc-windows-gnu
+```
+
+and then selecting it with
+
+```sh
+rustup default stable-x86_64-pc-windows-gnu
+```
 
 Install [MSYS2](https://www.msys2.org/). For simplicity, this tutorial will assume that you installed it in the directory `C:\msys64`. Start the MSYS2 console `C:\msys64\msys2.exe` and run the following commands inside that console, confirming the install prompts:
 
