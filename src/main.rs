@@ -321,7 +321,7 @@ impl GuiModel {
 						.set_label(string.as_str());
 				});
 
-				let tlm = TreeListModel::new(&sl, false, false, |list_item| {
+				let tlm = TreeListModel::new(sl, false, false, |list_item| {
 					let s2 = gtk::StringList::new(&[]);
 					println!(
 						"Create model {}",
@@ -338,7 +338,7 @@ impl GuiModel {
 					//None
 				});
 
-				let columnview = gtk::ColumnView::new(Option::<&gtk::NoSelection>::None);
+				let columnview = gtk::ColumnView::new(Option::<gtk::NoSelection>::None);
 
 				let column = gtk::ColumnViewColumn::builder()
 					.title("Test")
@@ -356,9 +356,9 @@ impl GuiModel {
 				columnview.add_css_class("data-table");
 
 				let sorter = columnview.sorter().unwrap();
-				let tree_sorter = gtk::TreeListRowSorter::new(Some(&sorter));
-				let sort_model = gtk::SortListModel::new(Some(&tlm), Some(&tree_sorter));
-				columnview.set_model(Some(&gtk::NoSelection::new(Some(&sort_model))));
+				let tree_sorter = gtk::TreeListRowSorter::new(Some(sorter));
+				let sort_model = gtk::SortListModel::new(Some(tlm), Some(tree_sorter));
+				columnview.set_model(Some(&gtk::NoSelection::new(Some(sort_model))));
 
 				//let s = gtk::NoSelection::new(Some(&tlm)); //SingleSelection, NoSelection, MultiSelection
 				//let listview = ListView::builder().model(&s).factory(&slif).build();
@@ -497,7 +497,7 @@ fn main() {
 fn apply_hardcoded_stylesheet() {
 	// This is required for Windows, to fix the titlebar look and feel
 	let provider = gtk::CssProvider::new();
-	provider.load_from_data(include_bytes!("style.css"));
+	provider.load_from_data(include_str!("style.css"));
 	gtk::StyleContext::add_provider_for_display(
 		&gtk::gdk::Display::default().expect("Could not connect to a display."),
 		&provider,
