@@ -164,41 +164,6 @@ struct GuiModel {
 	pages: Vec<GuiPage>,
 }
 
-fn add_scoll_workaround(scroll: &ScrolledWindow) {
-	// Workaround for bug https://gitlab.gnome.org/GNOME/gtk/-/issues/2971
-
-	let controller = EventControllerScroll::builder()
-		.flags(EventControllerScrollFlags::VERTICAL)
-		.build();
-
-	let scroll_clone = scroll.clone();
-	let last_frame_counter = RefCell::new(0);
-	controller.connect_scroll(move |_, _dx, _dy| {
-		let mut last_frame_counter = last_frame_counter.borrow_mut();
-		let new_frame_counter = scroll_clone.frame_clock().unwrap().frame_counter();
-		/*
-		let now = Instant::now();
-		println!(
-			"Scroll: {:?} {}, {} ({:?}) ({:?})",
-			now,
-			_dx,
-			_dy,
-			new_frame_counter,
-			scroll_clone.vadjustment().value()
-		);
-		*/
-		if *last_frame_counter == new_frame_counter {
-			//println!("Inhibited!");
-			gtk::Inhibit(true)
-		} else {
-			*last_frame_counter = new_frame_counter;
-			gtk::Inhibit(false)
-		}
-	});
-
-	scroll.add_controller(&controller);
-}
-
 impl GuiModel {
 	fn new(notebook: Notebook) -> GuiModel {
 		GuiModel {
@@ -404,7 +369,6 @@ impl GuiModel {
 					.min_content_width(200)
 					.build();
 
-				add_scoll_workaround(&scroll);
 				gtkbox.append(&scroll);
 
 				let label = Label::new(Some("Populating"));
