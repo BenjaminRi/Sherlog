@@ -268,11 +268,14 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				board_name == "sensorbase" ||
 				board_name == "telescope" ||
 				board_name == "trigger" ||
-				board_name == "adm" || //G
-				board_name == "laseroven" || //G
-				board_name == "wfd"	|| //W
-				board_name.starts_with("dynamic") || //P
-				board_name == "icbpower" || //P
+				board_name == "adm" || // G
+				board_name == "laseroven" || // G
+				board_name == "wfd"	|| // W
+				board_name == "dynamicadm" || // P
+				board_name == "icbpower" || // P
+				board_name.starts_with("cfm") || // L
+				board_name == "laserctl" || // L
+				board_name == "wlanmodule" || // L
 				false
 			{
 				if sensor_child_sources.is_empty()
@@ -400,7 +403,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 	})
 }
 
-fn adjust_sensor_timestamps(mut source: &mut model::LogSource) {
+fn adjust_sensor_timestamps(source: &mut model::LogSource) {
 	match &mut source.children {
 		model::LogSourceContents::Sources(v) => {
 			for mut source in v {
