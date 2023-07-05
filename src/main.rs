@@ -243,6 +243,7 @@ fn draw(
 	store: &mut LogStoreLinear,
 	drawing_area: &DrawingArea,
 	ctx: &cairo::Context,
+	font: &str,
 ) -> gtk::Inhibit {
 	//store.store.push(model::LogEntry { message: "TestTrace 309468456".to_string(),       severity: model::LogLevel::Trace,    ..Default::default() });
 	//log::info!("{}", store.store.len());
@@ -296,11 +297,7 @@ fn draw(
 		//index of filtered element:
 		.enumerate()
 	{
-		ctx.select_font_face(
-			"Lucida Console", //"Calibri"
-			cairo::FontSlant::Normal,
-			cairo::FontWeight::Normal,
-		);
+		ctx.select_font_face(font, cairo::FontSlant::Normal, cairo::FontWeight::Normal);
 		ctx.set_font_size(store.font_size);
 
 		let mut draw_highlight = if Some(i) == store.hover_line {
@@ -682,6 +679,11 @@ fn handle_evt_motion(
 	gtk::Inhibit(false)
 }
 
+const PREFERRED_FONTS: [&str; 2] = [
+	"Lucida Console", // Ships with Windows, like "Calibri" (which is unfortunately not monospace)
+	"DejaVu Sans Mono", // Generally available on Linux
+];
+
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------
@@ -693,6 +695,32 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	window.set_border_width(10);
 	window.set_position(gtk::WindowPosition::Center);
 	window.set_default_size(600, 400);
+
+	let pango_ctx = window.pango_context();
+	let preferred_font = pango_ctx
+		.font_map()
+		.map(|font_map| {
+			let mut preferred_font = None;
+			for font in PREFERRED_FONTS {
+				for family in font_map.list_families() {
+					if font == family.name().as_str() {
+						log::info!("Found font: {}", family.name());
+						preferred_font = Some(font);
+						break;
+					}
+				}
+			}
+			preferred_font
+		})
+		.unwrap_or_else(|| Option::<&str>::None)
+		.unwrap_or_else(|| {
+			let preferred_font = PREFERRED_FONTS[0];
+			log::info!(
+				"Could not find preferred font. Trying to use {}",
+				preferred_font
+			);
+			preferred_font
+		});
 
 	//let args = &args().collect::<Vec<_>>();
 	/*//FIXME: Use handle-local-options once https://github.com/gtk-rs/gtk/issues/580 is a thing
@@ -1279,32 +1307,47 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 	drawing_area.set_can_focus(true);
 	drawing_area.add_events(event_mask);
 	let f_clone_1 = store_rc.clone();
-	drawing_area.connect_event(move |x, y| handle_evt(&mut f_clone_1.borrow_mut(), x, y));
+	drawing_area.connect_event(move |drawing_area, evt| {
+		handle_evt(&mut f_clone_1.borrow_mut(), drawing_area, evt)
+	});
 
 	// establish a reasonable minimum view size
 	drawing_area.set_size_request(200, 200);
 
 	// https://gtk-rs.org/docs/gtk/trait.WidgetExt.html
 	let f_clone_2 = store_rc.clone();
-	drawing_area.connect_draw(move |x, y| draw(&mut f_clone_2.borrow_mut(), x, y));
+	drawing_area.connect_draw(move |drawing_area, ctx| {
+		draw(
+			&mut f_clone_2.borrow_mut(),
+			drawing_area,
+			ctx,
+			preferred_font,
+		)
+	});
 
 	let f_clone_3 = store_rc.clone();
-	drawing_area
-		.connect_scroll_event(move |x, y| handle_evt_scroll(&mut f_clone_3.borrow_mut(), x, y));
+	drawing_area.connect_scroll_event(move |drawing_area, evt| {
+		handle_evt_scroll(&mut f_clone_3.borrow_mut(), drawing_area, evt)
+	});
 
 	let f_clone_4 = store_rc.clone();
-	drawing_area.connect_button_press_event(move |x, y| {
-		handle_evt_press(&mut f_clone_4.borrow_mut(), x, y)
+	drawing_area.connect_button_press_event(move |drawing_area, evt| {
+		handle_evt_press(&mut f_clone_4.borrow_mut(), drawing_area, evt)
 	});
 
 	let f_clone_5 = store_rc.clone();
-	drawing_area.connect_button_release_event(move |x, y| {
-		handle_evt_release(&mut f_clone_5.borrow_mut(), x, y)
+	drawing_area.connect_button_release_event(move |drawing_area, evt| {
+		handle_evt_release(&mut f_clone_5.borrow_mut(), drawing_area, evt)
 	});
 
 	let f_clone_6 = store_rc.clone();
-	drawing_area.connect_motion_notify_event(move |x, y| {
-		handle_evt_motion(&mut f_clone_6.borrow_mut(), &timediff_entry.clone(), x, y)
+	drawing_area.connect_motion_notify_event(move |drawing_area, evt| {
+		handle_evt_motion(
+			&mut f_clone_6.borrow_mut(),
+			&timediff_entry.clone(),
+			drawing_area,
+			evt,
+		)
 	});
 
 	split_pane.pack2(&drawing_area, true, false);
