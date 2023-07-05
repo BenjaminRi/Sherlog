@@ -41,7 +41,7 @@ use gtk::{
 	MessageDialog, MessageType, Orientation, TreeStore, TreeView, TreeViewColumn, WindowPosition,
 };
 
-use std::env::args;
+//use std::env::args;
 
 enum LogSourcesColumns {
 	Active = 0,

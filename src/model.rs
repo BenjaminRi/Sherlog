@@ -67,7 +67,10 @@ pub struct LogSource {
 impl Default for LogEntry {
 	fn default() -> LogEntry {
 		LogEntry {
-			timestamp: DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+			timestamp: DateTime::<Utc>::from_utc(
+				NaiveDateTime::from_timestamp_opt(0, 0).unwrap(),
+				Utc,
+			),
 			severity: LogLevel::Error,
 			message: "".to_string(),
 			custom_fields: HashMap::new(),

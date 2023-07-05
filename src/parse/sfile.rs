@@ -112,7 +112,7 @@ pub fn from_file(path: &std::path::PathBuf) -> Result<model::LogSource, std::io:
 				DateTime::<Utc>::from_utc(ndt, Utc)
 			} else {
 				// Invalid date_time format, parse error
-				DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+				DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp_opt(0, 0).unwrap(), Utc)
 			}
 		} else {
 			// rsplitn always returns at least one iterator element
@@ -482,7 +482,8 @@ fn adjust_sensor_timestamps(source: &mut model::LogSource) {
 									// It is also reasonable to assume that a device receives its EtherCAT time within 2 years (or never).
 									if entry.timestamp
 										< DateTime::<Utc>::from_utc(
-											NaiveDateTime::from_timestamp(63_072_000, 0),
+											NaiveDateTime::from_timestamp_opt(63_072_000, 0)
+												.unwrap(),
 											Utc,
 										) {
 										//Divide delta by 100 to convert from 1ns to 100ns ticks, which is the default GCOM timespan measurement
