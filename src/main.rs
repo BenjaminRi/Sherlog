@@ -250,11 +250,11 @@ fn draw(
 	//log::info!("w: {} h: {}", drawing_area.allocated_width(), drawing_area.allocated_height());
 
 	ctx.set_source_rgb(1.0, 1.0, 1.0);
-	ctx.paint();
+	ctx.paint().unwrap();
 
 	/*ctx.set_source_rgb(1.0, 0.0, 0.0);
 	ctx.rectangle(10.0, 10.0, 2.0, 2.0);
-	ctx.fill();
+	ctx.fill().unwrap();
 
 	ctx.set_source_rgb(0.0, 0.0, 0.0);
 	ctx.new_sub_path();
@@ -332,7 +332,7 @@ fn draw(
 				w as f64,
 				store.line_spacing,
 			);
-			ctx.fill();
+			ctx.fill().unwrap();
 		}
 
 		match entry.severity {
@@ -361,11 +361,11 @@ fn draw(
 			+ f64::max(0.0, store.line_spacing - store.font_size) / 2.0;
 		//Anchor point of text is bottom left, excluding descent.
 		//We want to anchor on top left though, so calculate that away:
-		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent;
+		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent();
 
 		let date_str = entry.timestamp.format("%d.%m.%y %T%.3f").to_string();
 		ctx.move_to(store.border_left, font_offset_y);
-		ctx.show_text(&date_str);
+		ctx.show_text(&date_str).unwrap();
 
 		let short_sev = match entry.severity {
 			model::LogLevel::Critical => "CRI",
@@ -377,12 +377,12 @@ fn draw(
 		};
 
 		ctx.move_to(store.border_left + 180.0, font_offset_y);
-		ctx.show_text(&short_sev);
+		ctx.show_text(&short_sev).unwrap();
 
 		if let Some(anchor_offset) = store.anchor_offset {
 			if offset == anchor_offset {
 				ctx.move_to(store.border_left - 20.0, font_offset_y);
-				ctx.show_text(&"→"); //TODO: Replace with anchor symbol
+				ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
 				anchor_drawn = true;
 			} else if !anchor_drawn {
 				if offset >= anchor_offset {
@@ -390,14 +390,14 @@ fn draw(
 						store.border_left - 20.0,
 						font_offset_y - store.line_spacing / 2.0,
 					);
-					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
+					ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
 				} else if i == store.visible_lines - 1 || offset == store.last_offset {
 					ctx.move_to(
 						store.border_left - 20.0,
 						font_offset_y + store.line_spacing / 2.0,
 					);
-					ctx.show_text(&"→"); //TODO: Replace with anchor symbol
+					ctx.show_text(&"→").unwrap(); //TODO: Replace with anchor symbol
 					anchor_drawn = true;
 				}
 			}
@@ -409,13 +409,13 @@ fn draw(
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());
 		ctx.set_font_face(&new_font_face);*/
 
-		ctx.show_text(&entry.message);
+		ctx.show_text(&entry.message).unwrap();
 
 		/*if let Some(source_name) = store.log_sources.get(&entry.source_id) {
 			ctx.move_to(store.border_left + 210.0, font_offset_y + store.font_size);
 			ctx.set_font_size(f64::round(store.font_size * 0.7));
 			ctx.set_source_rgb(0.5, 0.5, 0.5);
-			ctx.show_text(source_name);
+			ctx.show_text(source_name).unwrap();
 			ctx.set_font_size(store.font_size);
 		}*/
 	}
@@ -447,7 +447,7 @@ fn draw(
 			store.scroll_bar.bar_width,
 			store.scroll_bar.bar_height,
 		);
-		ctx.fill();
+		ctx.fill().unwrap();
 
 		ctx.set_source_rgb(0.3, 0.3, 0.3);
 		ctx.rectangle(
@@ -456,7 +456,7 @@ fn draw(
 			store.scroll_bar.thumb_width,
 			store.scroll_bar.thumb_height,
 		);
-		ctx.fill();
+		ctx.fill().unwrap();
 	}
 
 	gtk::Inhibit(false)
@@ -936,9 +936,15 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 			//renderer_toggle.set_property_inconsistent(true);
 			renderer_toggle.set_alignment(0.0, 0.0);
 			//renderer_toggle.set_padding(0, 0);
-			column.pack_start(&renderer_toggle, false);
-			column.add_attribute(&renderer_toggle, "active", LogSourcesColumns::Active as i32);
-			column.add_attribute(
+			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_toggle, false);
+			gtk::prelude::TreeViewColumnExt::add_attribute(
+				&column,
+				&renderer_toggle,
+				"active",
+				LogSourcesColumns::Active as i32,
+			);
+			gtk::prelude::TreeViewColumnExt::add_attribute(
+				&column,
 				&renderer_toggle,
 				"inconsistent",
 				LogSourcesColumns::Inconsistent as i32,
@@ -948,8 +954,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		{
 			let renderer_text = CellRendererText::new();
 			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
-			column.pack_start(&renderer_text, false);
-			column.add_attribute(&renderer_text, "text", LogSourcesColumns::Text as i32);
+			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_text, false);
+			gtk::prelude::TreeViewColumnExt::add_attribute(
+				&column,
+				&renderer_text,
+				"text",
+				LogSourcesColumns::Text as i32,
+			);
 		}
 
 		{
@@ -985,8 +996,13 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 		{
 			let renderer_text = CellRendererText::new();
 			gtk::prelude::CellRendererExt::set_alignment(&renderer_text, 0.0, 0.0);
-			column.pack_start(&renderer_text, false);
-			column.add_attribute(&renderer_text, "text", LogSourcesColumns::ChildCount as i32);
+			gtk::prelude::TreeViewColumnExt::pack_start(&column, &renderer_text, false);
+			gtk::prelude::TreeViewColumnExt::add_attribute(
+				&column,
+				&renderer_text,
+				"text",
+				LogSourcesColumns::ChildCount as i32,
+			);
 		}
 		sources_tree_view.append_column(&column);
 	}

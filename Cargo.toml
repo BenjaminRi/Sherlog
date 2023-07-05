@@ -15,11 +15,11 @@ OriginalFilename = "sherlog.exe"
 LegalCopyright = "Copyright © 2020 Benjamin Richner"
 
 [dependencies]
-gtk = "0.15.4"
-log = "0.4.14"
-fern = "0.6.0"
-chrono = "0.4.19"
-regex = "1.5.4"
+gtk = "0.17.1"
+log = "0.4.19"
+fern = "0.6.2"
+chrono = "0.4.26"
+regex = "1.8.4"
 zip = { version = "0.5.9", features = ["deflate"], default-features = false }
 
 [build-dependencies]
