@@ -2,7 +2,7 @@
 name = "sherlog"
 version = "0.9.1"
 authors = ["Benjamin Richner"]
-edition = "2018"
+edition = "2021"
 license = "GPL-3.0-only"
 description = "Log viewer and analysis tool"
 keywords = ["visualization", "log", "analyzer", "debug-tool"]
