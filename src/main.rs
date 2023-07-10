@@ -689,9 +689,25 @@ const PREFERRED_FONTS: [&str; 2] = [
 //--------------------------------------------------------------------------------------------------
 
 fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
+	log::info!("File paths: {:?}", file_paths);
+	let file_path = if !file_paths.is_empty() {
+		if file_paths.len() > 1 {
+			log::warn!("Multiple files opened, ignoring all but the first one.");
+		}
+		Some(&file_paths[0])
+	} else {
+		None
+	};
+
 	let window = gtk::ApplicationWindow::new(application);
 	//window.set_icon_from_file("../images/sherlog_icon.png");
-	window.set_title("Sherlog");
+	window.set_title(&format!(
+		"{} - Sherlog v{}",
+		file_path
+			.map(|p| p.file_name().unwrap_or(p.as_os_str()).to_string_lossy())
+			.unwrap_or(std::borrow::Cow::Borrowed("(No file)")),
+		env!("CARGO_PKG_VERSION")
+	));
 	window.set_border_width(10);
 	window.set_position(gtk::WindowPosition::Center);
 	window.set_default_size(600, 400);
@@ -814,14 +830,9 @@ fn build_ui(application: &gtk::Application, file_paths: &[std::path::PathBuf]) {
 
 	let mut dialog_vec: Vec<gtk::MessageDialog> = Vec::<gtk::MessageDialog>::new();
 
-	log::info!("File paths: {:?}", file_paths);
-	let log_source_root = if !file_paths.is_empty() {
-		if file_paths.len() > 1 {
-			log::warn!("Multiple files opened, ignoring all but the first one.");
-		}
-
+	let log_source_root = if let Some(file_path) = file_path {
 		let now = Instant::now();
-		let root = parse::from_file(&file_paths[0]);
+		let root = parse::from_file(file_path);
 		let elapsed = now.elapsed();
 		log::info!(
 			"Time to parse file: {}ms",
