@@ -12,7 +12,7 @@ repository = "https://github.com/BenjaminRi/Sherlog/"
 [package.metadata.winresource]
 ProductName = "Sherlog"
 OriginalFilename = "sherlog.exe"
-LegalCopyright = "Copyright © 2020 Benjamin Richner"
+LegalCopyright = "© Benjamin Richner, 2019-2023"
 
 [dependencies]
 gtk = "0.17.1"
