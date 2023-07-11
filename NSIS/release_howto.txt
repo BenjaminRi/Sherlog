@@ -1,6 +1,6 @@
 - Increase crate version, build project again (also add Cargo.lock) and commit in git repo
 - Disable Windows console in main.rs
-- Set sfile password environment variable, trigger sfile.rs recompile
+- Set sfile password environment variable and recompile (trigger sfile.rs recompile if necessary - new rust compilers recognize the change and do incremental builds correctly)
 - Run NSIS to create a release installer
 - Test installer, in particular, remove C:\msys64\mingw64\bin from the PATH variable and make sure that the program finds all its dynamic libraries and runs properly
 - Update release notes

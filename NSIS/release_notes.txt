@@ -6,6 +6,19 @@
 | Pull requests are welcome               |
 +-----------------------------------------+
 
+-------------------------------------------------------------------------------
+
+Sherlog v0.9.2 (11.07.2023) - Commit ID: b32a51af7420a98ca693abca5c2d4263c125ec4c
+
+- Put logfile name and Sherlog version into window title
+- Sfile parser: Recognize more boards
+- Fix monospace font selection on Linux
+- Technical: Increase Rust edition from 2018 to 2021
+- Technical: Update Windows DLLs bundled with installer
+- Technical: Update Rust crate dependencies, including GTK
+
+Windows release: Sherlog-Setup-v0.9.2.exe
+SHA256: D86CDE282736330C9C9C5946786582F9DB7578175EF0B7C368ECA7B67674C5F6
 
 -------------------------------------------------------------------------------
 
