@@ -14,7 +14,7 @@ use gtk::{
 	ScrolledWindow, Spinner, TreeListModel, TreeStore, TreeView, Widget,
 };
 
-use glib::{clone, MainContext, PRIORITY_DEFAULT};
+use glib::{clone, MainContext, ControlFlow, Priority};
 
 use std::thread;
 use std::time::{Duration, Instant};
@@ -498,7 +498,7 @@ fn apply_hardcoded_stylesheet() {
 	// This is required for Windows, to fix the titlebar look and feel
 	let provider = gtk::CssProvider::new();
 	provider.load_from_data(include_str!("style.css"));
-	gtk::StyleContext::add_provider_for_display(
+	gtk::style_context_add_provider_for_display(
 		&gtk::gdk::Display::default().expect("Could not connect to a display."),
 		&provider,
 		gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
@@ -534,7 +534,7 @@ fn build_ui(
 	let gui_model = Rc::new(RefCell::new(GuiModel::new(notebook.clone())));
 	*global_gui_model = Some(GlobalGuiModel::new(gui_model.clone()));
 
-	let (sender, receiver) = MainContext::channel(PRIORITY_DEFAULT);
+	let (sender, receiver) = MainContext::channel(Priority::default());
 
 	{
 		let gui_model = gui_model.clone();
@@ -542,7 +542,7 @@ fn build_ui(
 			log::info!("Parsing done signal");
 			let mut gui_model = gui_model.borrow_mut();
 			gui_model.populate_page(page_id, parse_result);
-			Continue(true)
+			ControlFlow::Continue
 		});
 	}
 

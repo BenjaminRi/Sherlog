@@ -15,7 +15,7 @@ OriginalFilename = "sherlog.exe"
 LegalCopyright = "© Benjamin Richner, 2019-2023"
 
 [dependencies]
-gtk = { version = "0.6.0", package = "gtk4" }
+gtk = { version = "0.7.2", package = "gtk4" }
 log = "0.4.17"
 fern = "0.6.1"
 chrono = "0.4.24"
