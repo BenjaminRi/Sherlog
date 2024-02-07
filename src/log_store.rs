@@ -160,6 +160,7 @@ impl LogStoreLinear {
 				Utc,
 			),
 			severity: model::LogLevel::Error,
+			session_id: Some(0),
 			message: "Foo".to_string(),
 			source_id: 0,
 			visible: crate::model_internal::VISIBLE_ON,
