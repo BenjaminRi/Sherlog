@@ -360,8 +360,14 @@ fn draw(
 		//We want to anchor on top left though, so calculate that away:
 		let font_offset_y = offset_y + store.font_size - ctx.font_extents().unwrap().descent();
 
+		if let Some(session_id) = &entry.session_id
+		{
+			ctx.move_to(store.border_left, font_offset_y);
+			ctx.show_text(&session_id.to_string()).unwrap();
+		}
+
 		let date_str = entry.timestamp.format("%d.%m.%y %T%.3f").to_string();
-		ctx.move_to(store.border_left, font_offset_y);
+		ctx.move_to(store.border_left + 40.0, font_offset_y);
 		ctx.show_text(&date_str).unwrap();
 
 		let short_sev = match entry.severity {
@@ -373,7 +379,7 @@ fn draw(
 			model::LogLevel::Trace => "TRC",
 		};
 
-		ctx.move_to(store.border_left + 180.0, font_offset_y);
+		ctx.move_to(store.border_left + 220.0, font_offset_y);
 		ctx.show_text(&short_sev).unwrap();
 
 		if let Some(anchor_offset) = store.anchor_offset {
@@ -400,7 +406,7 @@ fn draw(
 			}
 		}
 
-		ctx.move_to(store.border_left + 210.0, font_offset_y);
+		ctx.move_to(store.border_left + 250.0, font_offset_y);
 
 		/*let font_face = ctx.get_font_face();
 		let new_font_face = cairo::FontFace::toy_create("cairo :monospace", font_face.toy_get_slant(), font_face.toy_get_weight());

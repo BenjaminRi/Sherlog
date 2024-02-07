@@ -13,6 +13,7 @@ pub const VISIBLE_OFF_FILTER: u8 = 0x4;
 pub struct LogEntryExt {
 	pub timestamp: chrono::DateTime<Utc>,
 	pub severity: model::LogLevel,
+	pub session_id: Option<u32>,
 	pub message: String,
 	pub source_id: u32,
 	pub visible: u8,
@@ -65,15 +66,26 @@ impl LogSourceExt {
 			}
 			model::LogSourceContents::Entries(v) => LogSourceContentsExt::Entries(
 				v.into_iter()
-					.map(move |entry| LogEntryExt {
-						timestamp: entry.timestamp,
-						severity: entry.severity,
-						message: remove_nul_bytes(entry.message),
-						source_id: 0,
-						visible: VISIBLE_ON,
-						entry_id: 0,
-						prev_offset: 0,
-						next_offset: 0,
+					.map(move |entry| {
+						let session_id = entry.custom_fields.get("SessionId").and_then(|custom_field| {
+								// If the "SessionId" field exists in the HashMap, attempt to extract the value and convert it to `Option<u32>`
+								match custom_field {
+									model::CustomField::UInt32(value) => Some(*value),
+									_ => None, // Return None for other variants or if the key doesn't exist
+								}
+						});
+
+						LogEntryExt {
+							timestamp: entry.timestamp,
+							severity: entry.severity,
+							session_id: session_id,
+							message: remove_nul_bytes(entry.message),
+							source_id: 0,
+							visible: VISIBLE_ON,
+							entry_id: 0,
+							prev_offset: 0,
+							next_offset: 0,
+						}
 					})
 					.collect(),
 			),
