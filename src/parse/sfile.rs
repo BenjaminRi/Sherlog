@@ -477,12 +477,12 @@ fn adjust_sensor_timestamps(source: &mut model::LogSource) {
 						} else {
 							if let Some(correction) = &active_correction {
 								if *session_id == correction.session_id {
-									// Timestamps before 01-01-72 00:00:00.000000 are not realistic because the device did not exist back then.
+									// Timestamps before 01-01-2001 00:00:00.000000 are not realistic because the device did not exist back then.
 									// We can safely assume that these are relative timestamps that are not yet corrected with EtherCAT time.
 									// It is also reasonable to assume that a device receives its EtherCAT time within 2 years (or never).
 									if entry.timestamp
 										< DateTime::<Utc>::from_utc(
-											NaiveDateTime::from_timestamp_opt(63_072_000, 0)
+											NaiveDateTime::from_timestamp_opt(978_300_000, 0)
 												.unwrap(),
 											Utc,
 										) {
